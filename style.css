@@ -1,0 +1,1483 @@
+/* ===== 토큰 ===== */
+:root {
+  --cream: #FFF8EE;
+  --moss-100: #EAF3E0;
+  --moss-300: #C9E4B4;
+  --moss-600: #6FA351;
+  --moss-800: #3F6B2E;
+  --clay: #E8935E;
+  --clay-dark: #C97140;
+  --berry: #E8697B;
+  --ink: #3E3226;
+  --ink-soft: #8A7A68;
+  --paper: #FFFCF6;
+  --gold: #F0B93E;
+  --shadow: 0 4px 14px rgba(63, 46, 21, 0.12);
+  --radius-lg: 26px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --font-display: "Jua", "Gaegu", "Nanum Gothic", sans-serif;
+  --font-body: "Gaegu", "Nanum Gothic", -apple-system, sans-serif;
+}
+
+@font-face {
+  font-family: "Jua";
+  src: local("Jua");
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* 페이지 전체 스크롤 방지 */
+  background: var(--ink);
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+#game-root {
+  width: 100%;
+  max-width: 480px;
+  height: 100dvh;
+  margin: 0 auto;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 0 40px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+/* ===== ① 메인 캐릭터 영역 ===== */
+/* flex-grow 비율로 "화면에서 남는 공간의 몫"을 차지하게 한다 (아래 #content-area와
+   flex-grow 비율을 나눠 가짐). min-height를 두지 않아서, 화면이 아무리 작아져도
+   강제로 최소 크기를 유지하지 않고 항상 비율대로 함께 줄어든다 — 이게 예전 구조
+   (height: Xvh + min-height 강제)가 "화면이 작아지면 어느 지점에서 뚝 끊기던" 문제의
+   원인이었다. 캐릭터/게이지도 전부 % 또는 이 컨테이너 기준 상대값으로만 크기를 잡아서
+   스테이지가 줄면 안의 모든 것이 함께 비례해서 줄어들게 했다. */
+#main-stage {
+  position: relative;
+  flex: 5 1 0; /* content-area(flex: 4)보다 상단(캐릭터 영역)이 더 크게 — 화면 크기가 바뀌어도 항상 이 비율 유지 */
+  min-height: 0; /* flex item의 기본 min-height:auto가 축소를 막는 걸 방지 */
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: background 0.6s ease;
+}
+
+.stage-bg.stage-1 { background: linear-gradient(180deg, #DCEFCB 0%, #C9E4B4 55%, #B8DAA0 100%); }
+.stage-bg.stage-2 { background: linear-gradient(180deg, #FDF0C4 0%, #F8E29B 55%, #F0D37E 100%); }
+.stage-bg.stage-3 { background: linear-gradient(180deg, #FBDDBE 0%, #F6C79A 55%, #EFB27B 100%); }
+.stage-bg.stage-4 { background: linear-gradient(180deg, #D4E7F5 0%, #B9D9EF 55%, #9FC9E6 100%); }
+.stage-bg.stage-5 { background: linear-gradient(180deg, #E4D9F2 0%, #D2C0EA 55%, #C0A8E0 100%); }
+
+/* 도박에서 정상우 당첨 시: Stage가 몇 단계든 상관없이 배경만 갈색 계열로 전환 (캐릭터 단계는 유지) */
+.stage-bg.debtor-mode { background: linear-gradient(180deg, #D8C6AE 0%, #C2A87F 55%, #A88B5C 100%); }
+
+/* 배경 이미지 레이어: #main-stage 전체를 덮되, .stage-bg의 그라디언트보다 위에 그려진다.
+   onerror로 로드 실패 시 hidden 처리되므로, 이미지가 없으면 자연스럽게 그라디언트만 보인다. */
+.stage-bg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.stage-bg-img[hidden] { display: none; }
+
+#village-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+#village-deco::before,
+#village-deco::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 42%;
+  height: 30%;
+  background: rgba(255,255,255,0.35);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+}
+#village-deco::before { left: -8%; }
+#village-deco::after { right: -8%; }
+
+#popup-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.money-popup {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--moss-800);
+  text-shadow: 0 2px 0 rgba(255,255,255,0.7), 0 0 4px rgba(255,255,255,0.6);
+  animation: popup-float 0.9s ease-out forwards;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+.money-popup::before {
+  content: "🪙";
+  font-size: 16px;
+}
+
+@keyframes popup-float {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  15%  { opacity: 1; transform: translate(-50%, -8px) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -58px) scale(1); }
+}
+
+/* 관리자 전용 히든 커맨드 안내: 메인 캐릭터 영역 중앙에 잠깐 떴다 사라짐 */
+.admin-notice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+  background: rgba(40, 34, 26, 0.9);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--gold);
+  white-space: nowrap;
+  animation: admin-notice-anim 1.8s ease-out forwards;
+}
+@keyframes admin-notice-anim {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+#main-character {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 6%;
+  max-height: 55%; /* 스테이지가 작아져도 goal-panel과 겹치지 않게 항상 비례해서 줄어들도록 */
+  max-width: 60%; /* 가로 폭도 함께 제한해서, 세로만 줄고 가로는 못 따라가는 일이 없게 함 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transform-origin: 50% 85%;
+  transition: transform 0.08s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+#main-character:active { transform: scale(0.92); }
+
+#main-character.bounce {
+  animation: char-bounce 0.28s ease;
+}
+@keyframes char-bounce {
+  0%   { transform: scale(1) rotate(0deg); }
+  35%  { transform: scale(0.9, 1.08) rotate(-3deg); }
+  70%  { transform: scale(1.05, 0.95) rotate(2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* 캐릭터 두 벌(평소 / 정상우의 빚)을 같은 자리에 겹쳐두고 하나만 보이게 전환.
+   각 그룹(.char-group) 안에는 이미지 <img>와 그 폴백(이모지 span 또는 SVG)이 함께 들어있고,
+   이미지 로드 성공/실패에 따라 둘 중 하나만 보이도록 onerror가 관리한다(index.html 참고). */
+.char-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 100%;
+}
+.char-group[hidden] { display: none; }
+
+.char-fallback {
+  font-size: 72px;
+  line-height: 1;
+}
+
+.char-svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.char-svg[hidden] {
+  display: none;
+}
+
+/* 팔 흔들기 애니메이션: char-svg-debtor(도박 캐릭터 폴백 SVG)에만 적용된다.
+   char-svg-normal은 <img>로 바뀌어 내부에 #arm-right 같은 개별 파츠가 없으므로 대상에서 제외했다. */
+#char-svg-debtor #arm-right-2 {
+  transform-origin: 138px 122px;
+}
+#main-character.bounce #char-svg-debtor #arm-right-2 {
+  animation: arm-swing 0.28s ease;
+}
+@keyframes arm-swing {
+  0%   { transform: rotate(15deg); }
+  40%  { transform: rotate(55deg); }
+  100% { transform: rotate(15deg); }
+}
+
+/* ===== ② 목표(빚) 진행바: 메인 스테이지 위, 완전 투명 배경 + 두꺼운 바 =====
+   라벨("디디의 빚")은 바 위쪽 바깥에 배치해 게이지를 가리지 않는다.
+   바 안에는 "남은 빚" 금액을 텍스트로 보여줘서, 채워질수록 빚을 갚고 있다는
+   게(빚이 쌓이는 게 아니라) 명확히 전달되도록 한다. */
+#goal-panel {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  right: 14px;
+  z-index: 6; /* 팝업(5)보다 위, 장식보다 위 */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.goal-panel-label {
+  align-self: flex-start;
+  background: var(--berry);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  border: 2px solid rgba(255,255,255,0.85);
+}
+
+.goal-progress-track {
+  position: relative;
+  height: 24px;
+  background: rgba(40, 34, 26, 0.28);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
+}
+.goal-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--moss-600), var(--gold));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(240, 185, 62, 0.6);
+}
+.goal-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 업적(트로피) 버튼: 메인 캐릭터 영역 우측 하단 */
+.achievement-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.85);
+  background: var(--gold);
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  transition: transform 0.1s;
+}
+.achievement-btn:active { transform: scale(0.92); }
+
+/* "맞다이 신청" 버튼: 트로피(우측 하단)와 같은 가로 선상, 왼쪽 끝.
+   정상우 모드 + Stage 5일 때만 나타난다(평소엔 hidden). */
+.fight-challenge-btn {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.85);
+  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+  transition: transform 0.1s;
+  animation: fight-btn-pulse 1.4s ease-in-out infinite;
+}
+.fight-challenge-btn:active { transform: scale(0.94); }
+.fight-challenge-btn[hidden] { display: none; }
+@keyframes fight-btn-pulse {
+  0%, 100% { box-shadow: 0 2px 6px rgba(0,0,0,0.22); }
+  50% { box-shadow: 0 2px 14px rgba(232, 105, 123, 0.7); }
+}
+
+/* 업적 달성 토스트: 게이지 바로 아래에 잠깐 떴다 사라짐 (마인크래프트 도전과제 느낌) */
+.achievement-toast {
+  position: absolute;
+  top: 62px; /* goal-panel 바로 아래 */
+  left: 50%;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #FFF6D9, #FFE8B0); /* 파스텔 노랑 계열로 밝게 */
+  border: 2px solid var(--gold);
+  border-radius: var(--radius-md);
+  padding: 8px 14px 8px 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  pointer-events: none;
+  animation: achievement-toast-anim 3.2s ease-in-out forwards;
+}
+.achievement-toast[hidden] { display: none; }
+.achievement-toast-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+.achievement-toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.achievement-toast-label {
+  font-size: 10px;
+  color: var(--clay-dark);
+  font-weight: 700;
+}
+.achievement-toast-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink);
+}
+@keyframes achievement-toast-anim {
+  0%   { opacity: 0; transform: translate(-50%, -10px); }
+  8%   { opacity: 1; transform: translate(-50%, 0); }
+  85%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -10px); }
+}
+
+/* 업적 목록 모달 */
+.achievement-modal-box {
+  max-width: 320px;
+}
+.achievement-progress-text {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin: -6px 0 12px;
+}
+.achievement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.achievement-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  border: 2px solid var(--moss-100);
+}
+.achievement-row.locked {
+  opacity: 0.55;
+}
+.achievement-row-icon {
+  font-size: 22px;
+  width: 30px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.achievement-row.locked .achievement-row-icon {
+  filter: grayscale(1);
+}
+.achievement-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.achievement-row-name {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  color: var(--ink);
+  display: block;
+}
+.achievement-row-desc {
+  font-size: 11px;
+  color: var(--ink-soft);
+  display: block;
+}
+.achievement-row.locked .achievement-row-name {
+  color: var(--ink-soft);
+}
+
+/* ===== 현재 금액: 상단 탭 바로 아래, 콘텐츠 영역 시작 지점에 고정 ===== */
+#current-money-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: var(--paper);
+  border-bottom: 2px solid var(--moss-100);
+}
+.current-money-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.current-money-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--moss-800);
+}
+
+/* ===== ③ 상단 3개 메인 탭 ===== */
+#main-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  padding: 10px 8px;
+  background: var(--moss-100);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 13px 2px;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab-btn:active { transform: scale(0.96); }
+.tab-btn.active {
+  background: var(--moss-600);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.tab-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tab-btn-gamble {
+  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  color: #fff;
+  flex: 0.9;
+}
+.tab-btn-gamble.active {
+  background: linear-gradient(180deg, #D8536A, #B03B4F);
+}
+
+.tab-btn-settings {
+  background: var(--ink-soft);
+  color: #fff;
+  flex: 0.7;
+}
+.tab-btn-settings.active {
+  background: var(--ink);
+}
+
+/* ===== ④ 콘텐츠 영역 (여기만 스크롤) ===== */
+#content-area {
+  flex: 4 1 0; /* main-stage(flex: 5)보다 작게 — 5:4 비율. 화면이 작아지면 이 영역도 함께 줄되, 스크롤로 흡수 */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 16px 20px;
+  background: var(--cream);
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* 클릭/도박 탭은 다른 탭과 달리 콘텐츠가 짧아 스크롤 없이 한 화면에 들어오도록
+   카드 내부 패딩을 컴팩트하게 잡는다. (세로 중앙 정렬은 콘텐츠가 넘칠 때 위가 잘려
+   보이는 문제가 있어 상단 정렬로 유지한다.) */
+#tab-click.tab-panel.active,
+#tab-gamble.tab-panel.active {
+  display: block;
+}
+
+/* 클릭 업그레이드 카드 */
+.upgrade-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  border: 2px solid var(--moss-100);
+}
+
+.upgrade-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.upgrade-icon {
+  font-size: 30px;
+  background: var(--moss-100);
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.upgrade-title h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin: 0 0 2px;
+  color: var(--ink);
+}
+.upgrade-sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.upgrade-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stat-box {
+  background: var(--moss-100);
+  border-radius: var(--radius-sm);
+  padding: 9px 6px;
+  text-align: center;
+}
+.stat-label {
+  display: block;
+  font-size: 10px;
+  color: var(--moss-800);
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.stat-value {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.upgrade-btn {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--clay), var(--clay-dark));
+  color: #fff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #A85B32;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.upgrade-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #A85B32;
+}
+.upgrade-btn:disabled {
+  background: #D8D0C4;
+  box-shadow: 0 4px 0 #B8AF9F;
+  cursor: not-allowed;
+}
+.upgrade-btn-label {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+.upgrade-btn-cost {
+  font-size: 12.5px;
+  opacity: 0.9;
+}
+
+.upgrade-btn.shake {
+  animation: btn-shake 0.35s ease;
+}
+@keyframes btn-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+.coming-soon {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+/* ===== 서브탭 공통 (주민 확인 테마탭 / 주민 고용 테마탭) =====
+   더 이상 sticky로 스크롤을 따라오지 않고 콘텐츠 영역 맨 위에 고정된다. */
+.sub-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.theme-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 20px;
+  cursor: pointer;
+  border: 2px solid var(--moss-100);
+  transition: transform 0.1s, border-color 0.15s, background 0.15s;
+  position: relative;
+}
+.theme-btn:active { transform: scale(0.94); }
+.theme-btn.active {
+  background: var(--moss-100);
+  border-color: var(--moss-600);
+}
+.theme-btn.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.theme-btn .theme-lock-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 11px;
+  background: var(--ink-soft);
+  color: #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== 주민 고용 카드 ===== */
+.hire-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  border: 2px solid var(--moss-100);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.hire-visual {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--moss-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  overflow: hidden; /* 이미지가 원형 배지 밖으로 삐져나오지 않도록 */
+  flex-shrink: 0;
+}
+
+/* 주민 캐릭터 이미지: 원형 배지(.hire-visual) 안에 꽉 차게. onerror로 로드 실패 시 hidden
+   처리되고, 형제인 .hire-emoji가 대신 보인다(game.js hireVisualCharacterHtml 참고). */
+.hire-character-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hire-character-img[hidden] { display: none; }
+
+.hire-emoji[hidden] { display: none; }
+
+.hire-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin: 0;
+  color: var(--ink);
+}
+
+.hire-info {
+  width: 100%;
+}
+
+.hire-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--moss-100);
+}
+.hire-stat-row strong {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: normal;
+}
+
+.hire-btn {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--moss-600), var(--moss-800));
+  color: #fff;
+  padding: 12px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #2E5321;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.hire-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #2E5321;
+}
+.hire-btn:disabled {
+  background: #D8D0C4;
+  box-shadow: 0 4px 0 #B8AF9F;
+  cursor: not-allowed;
+}
+.hire-btn.hired {
+  background: var(--moss-100);
+  color: var(--moss-800);
+  box-shadow: none;
+  cursor: default;
+}
+.hire-btn.shake {
+  animation: btn-shake 0.35s ease;
+}
+
+/* 아직 등장하지 않은(이전 테마 미완료) 주민 카드 잠금 표시 */
+.hire-card.locked-theme {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
+.hire-card.locked-theme .hire-btn {
+  background: #D8D0C4;
+  box-shadow: 0 4px 0 #B8AF9F;
+  cursor: not-allowed;
+}
+
+/* 고용 탭 테마 잠금 안내 카드 (테마 자체가 아직 안 열렸을 때) */
+.theme-locked-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 36px 20px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  border: 2px dashed var(--moss-300);
+}
+.theme-locked-icon {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 10px;
+}
+.theme-locked-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.theme-locked-desc {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ===== 주민 확인: 개별 주민 공간 ===== */
+.theme-panel { display: none; }
+.theme-panel.active { display: flex; flex-direction: column; gap: 14px; }
+
+/* 주민 확인 화면: 레벨/수익 등 수치 정보 없이 이미지(잠금 상태)만 크게 보여준다.
+   실제 강화/고용 조작은 "주민 고용" 탭에서만 한다. */
+.villager-slot {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  border: 2px solid var(--moss-100);
+  position: relative; /* +금액 팝업 기준점 */
+  overflow: hidden;
+}
+
+/* 애니메이션 규칙: display:none인 탭/테마(다른 메인탭, 다른 테마)로 전환되면 브라우저가
+   알아서 애니메이션을 멈춰준다. 스크롤로 화면 밖에 벗어나는 것까지는 신경 쓰지 않는다
+   (주민이 한 테마당 3명뿐이라 굳이 더 최적화할 필요는 없음). 아래 도트/모션/말풍선
+   클래스는 전부 이 정지 로직 없이 항상 재생되면 된다. */
+
+/* .villager-visual 레이어 구조 (배경이 이미지로 바뀌어도 그대로 쓸 수 있게 미리 잡아둠):
+   1) 배경(이미지 또는 단색 그라디언트) — .villager-visual 자체의 background
+   2) 배경 장식 캐릭터(주민이 아닌, 배경에 움직이는 작은 동물/사물) — .bg-decor 안에 여러 개
+   3) 주민 캐릭터 본체(이모지 또는 이미지) — .villager-emoji / .villager-character-img
+   4) 이름 배지 — 캐릭터 위에 놓인 것처럼 보이도록 위(z-index) 레이어
+   5) 주민 캐릭터 위 말풍선(조건부로만 나타남, 기본은 숨김), 잠금 오버레이는 항상 최상단
+   (바닥/풀 레이어는 별도로 두지 않는다 — 필요하면 배경 이미지 자체에 함께 그려 넣는다.)
+   각 레이어의 z-index를 미리 정해둬서 나중에 요소를 채워도 순서가 안 꼬이게 한다. */
+.villager-visual {
+  position: relative;
+  height: 170px; /* 기존 220px에서 축소 */
+  background: linear-gradient(180deg, var(--moss-100), var(--moss-300));
+  display: flex;
+  align-items: flex-end; /* 캐릭터를 하단 쪽으로 붙여서, 위쪽에 말풍선이 들어갈 공간을 남긴다 */
+  justify-content: center;
+  padding-bottom: 28px; /* 이름표(bottom:12px)와 살짝 띄우기 위한 여백 */
+}
+
+/* 배경 이미지 레이어: .villager-visual 전체를 덮되, 그 자체의 그라디언트 배경보다 위에 그려진다.
+   onerror로 로드 실패 시 hidden 처리되므로, 이미지가 없으면 자연스럽게 그라디언트만 보인다. */
+.villager-bg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.villager-bg-img[hidden] { display: none; }
+
+/* 배경 장식 캐릭터 레이어: 주민이 아닌 배경 소품(나비, 구름, 반짝임 등)을 여기 여러 개 넣고
+   각각 원하는 위치(top/left)와 애니메이션을 지정한다. 주민 캐릭터보다 아래(z-index 낮음). */
+.bg-decor {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.bg-decor-item {
+  position: absolute; /* 개별 소품마다 top/left/right/bottom을 인라인이나 별도 클래스로 지정 */
+}
+
+/* 주민 캐릭터 본체: 배경 장식보다 위, 말풍선/배지보다 아래 */
+.villager-emoji,
+.villager-character-img {
+  position: relative;
+  z-index: 2;
+}
+
+/* 주민별 캐릭터 모션 3종류 (CONFIG.villagerMotions에서 지정). 나중에 실제 이미지가
+   들어와도 그대로 쓸 수 있게 transform 기반으로만 만들어서 이미지 크기와 무관하게 작동한다. */
+.motion-bounce {
+  animation: villager-bounce 0.9s ease-in-out infinite;
+}
+@keyframes villager-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.motion-sway {
+  animation: villager-sway 1.6s ease-in-out infinite;
+}
+@keyframes villager-sway {
+  0%, 100% { transform: translateX(-6px) rotate(-3deg); }
+  50% { transform: translateX(6px) rotate(3deg); }
+}
+
+.motion-float {
+  animation: villager-float 2.4s ease-in-out infinite;
+}
+@keyframes villager-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* 주민 캐릭터 위 말풍선: 기본은 숨김(hidden), 필요할 때만 JS로 표시하고 텍스트/아이콘을 채운다.
+   캐릭터 머리 위(우측 상단)에 뜨는 형태로 기본 위치를 잡아뒀다. */
+.villager-speech-bubble {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 6; /* 최상단: 이름배지(4)/잠금(5)보다도 위 */
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  white-space: nowrap;
+}
+.villager-speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 16px;
+  border-width: 6px 6px 0;
+  border-style: solid;
+  border-color: #fff transparent transparent;
+}
+.villager-speech-bubble[hidden] {
+  display: none;
+}
+
+/* 테마별 슬롯 배경색 (기획서: 나무=초록, 당근=주황, 물고기=파랑, 광산=회색, 별=보라) */
+#theme-forest .villager-visual { background: linear-gradient(180deg, #E1F0D4, #B9DE9E); }
+#theme-farm   .villager-visual { background: linear-gradient(180deg, #FBE6C8, #F3C98C); }
+#theme-sea    .villager-visual { background: linear-gradient(180deg, #D2E9F5, #A3D0EA); }
+#theme-mine   .villager-visual { background: linear-gradient(180deg, #E3E1DC, #C3BFB5); }
+#theme-star   .villager-visual { background: linear-gradient(180deg, #E7DCF5, #C7ACE6); }
+
+.villager-emoji {
+  font-size: 90px; /* 말풍선이 위쪽에 들어갈 공간을 남기기 위해 110px에서 축소 */
+  transition: filter 0.2s;
+  line-height: 1;
+}
+.villager-emoji[hidden] { display: none; }
+
+/* 주민 캐릭터 이미지: 이모지와 같은 자리·크기감으로 보이도록 높이를 이모지 폰트 크기에 맞춘다.
+   onerror로 로드 실패 시 hidden 처리되고, 형제인 .villager-emoji가 대신 보인다(index.html 생성 로직 참고). */
+.villager-character-img {
+  height: 90px; /* 말풍선이 위쪽에 들어갈 공간을 남기기 위해 110px에서 축소 */
+  width: auto;
+  max-width: 90%;
+  object-fit: contain;
+}
+.villager-character-img[hidden] { display: none; }
+
+
+.villager-name-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4; /* 캐릭터(2)보다 위, 잠금 오버레이(5)보다는 아래 — 잠겼을 때도 이름은 보여야 하므로 잠금 오버레이보다 낮게 두되 오버레이 자체가 배경색만 있어 텍스트는 가려지지 않게 처리 */
+  background: rgba(255, 252, 246, 0.9);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.villager-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5; /* 이름배지(4)보다는 위, 말풍선(같은 슬롯에서 동시에 안 뜨므로 큰 의미 없음)과 비슷한 최상단 */
+  background: rgba(40, 34, 26, 0.55); /* 이전보다 살짝 옅게 해서 뒤의 이름표/캐릭터가 은은하게 비치도록 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+}
+.lock-icon { font-size: 40px; }
+.lock-text { font-size: 14px; opacity: 0.9; }
+
+.villager-slot.unlocked .villager-lock-overlay { display: none; }
+
+/* ===== 도박(돌림판) ===== */
+.gamble-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  border: 2px solid #F5DCE0;
+}
+
+.gamble-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.gamble-header .upgrade-icon {
+  background: #FCE9EC;
+}
+
+/* 룰렛(색상만) + 옆의 확률표 버튼 — 서로 거리를 넓게 두어 답답해 보이지 않게 */
+.wheel-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  margin-bottom: 28px;
+}
+
+.wheel-wrap {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  flex-shrink: 0;
+}
+
+.wheel-pointer {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  color: var(--berry);
+  z-index: 3;
+  text-shadow: 0 2px 0 rgba(255,255,255,0.7);
+}
+
+.wheel {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 6px solid var(--paper);
+  box-shadow: 0 0 0 3px var(--berry), var(--shadow);
+  position: relative;
+  transition: transform 4.2s cubic-bezier(0.12, 0.75, 0.1, 1);
+  /* 배경 conic-gradient는 game.js에서 CONFIG 기반으로 인라인 생성 */
+}
+
+.wheel::after {
+  content: "";
+  position: absolute;
+  inset: 38%;
+  background: var(--paper);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+/* 확률표 버튼: 정사각형으로, 룰렛 옆에 배치 */
+.payout-table-btn {
+  flex-shrink: 0;
+  width: 76px;
+  height: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  border: 2px solid var(--moss-100);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.1s, border-color 0.15s;
+}
+.payout-table-btn:active { transform: scale(0.95); }
+.payout-table-icon { font-size: 24px; }
+.payout-table-text {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* 확률표 모달: 세로로 긴 리스트 형태 (원래 디자인으로 롤백) */
+.payout-modal-box {
+  max-width: 300px;
+}
+.payout-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.payout-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+}
+.payout-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.8);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.payout-label {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  flex: 1;
+}
+.payout-chance {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.payout-row.jackpot-bad {
+  background: #F3ECE4;
+  border-color: #E4D6C8;
+}
+.payout-row.jackpot-bad .payout-label {
+  color: var(--clay-dark);
+}
+
+/* 도박 결과 팝업: 룰렛 위에 잠깐 떠올랐다 사라진다 */
+.gamble-result-popup {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, 0);
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--moss-800);
+  background: var(--paper);
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--moss-300);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+  animation: gamble-popup-float 1.6s ease-out forwards;
+}
+.gamble-result-popup.win {
+  color: var(--moss-800);
+  border-color: var(--moss-600);
+}
+.gamble-result-popup.lose {
+  color: var(--clay-dark);
+  border-color: var(--clay);
+}
+.gamble-result-popup.jackpot-bad {
+  color: #fff;
+  background: var(--ink-soft);
+  border-color: var(--ink);
+  font-size: 14px;
+}
+@keyframes gamble-popup-float {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.85); }
+  15%  { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+  25%  { transform: translate(-50%, 0) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -14px) scale(1); }
+}
+
+#spin-btn {
+  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  box-shadow: 0 4px 0 #9E3549;
+}
+#spin-btn:active {
+  box-shadow: 0 1px 0 #9E3549;
+}
+#spin-btn:disabled {
+  background: #D8D0C4;
+  box-shadow: 0 4px 0 #B8AF9F;
+}
+
+/* 작은 화면 대응: main-stage/content-area는 이제 flex 비율(3:5)로 항상 함께
+   줄어들기 때문에 여기서 크기를 강제로 재정의할 필요가 없다. 글자 크기 등
+   가독성만 살짝 줄여준다. */
+@media (max-height: 640px) {
+  .goal-panel-label { font-size: 10px; padding: 2px 10px; }
+  .goal-progress-track { height: 18px; }
+  .goal-progress-text { font-size: 10px; }
+  #current-money-bar { padding: 6px 14px; }
+  .current-money-value { font-size: 18px; }
+}
+
+/* 세로 폭이 아주 짧은 경우(가로로 눕힌 화면 등) 한 번 더 축소 */
+@media (max-height: 480px) {
+  #goal-panel { top: 6px; left: 8px; right: 8px; }
+  .goal-progress-track { height: 15px; }
+}
+
+/* ===== 설정 화면 ===== */
+.settings-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  border: 2px solid var(--moss-100);
+  margin-bottom: 14px;
+}
+
+.settings-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+
+.settings-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+/* 배속 선택 */
+.speed-options {
+  display: flex;
+  gap: 8px;
+}
+
+.speed-btn {
+  flex: 1;
+  padding: 12px 4px;
+  border: 2px solid var(--moss-100);
+  border-radius: var(--radius-sm);
+  background: var(--moss-100);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+  position: relative;
+}
+.speed-btn:active { transform: scale(0.96); }
+.speed-btn.active {
+  background: var(--moss-600);
+  color: #fff;
+  border-color: var(--moss-800);
+}
+.speed-btn.locked {
+  background: #ECE9E2;
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+.speed-btn .speed-lock-icon {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* 저장 슬롯 */
+.save-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.save-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--moss-100);
+  border-radius: var(--radius-sm);
+}
+
+.save-slot-info {
+  flex: 1;
+  min-width: 0;
+}
+.save-slot-title {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  color: var(--ink);
+  margin: 0 0 2px;
+}
+.save-slot-desc {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.save-slot-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.slot-btn {
+  padding: 11px 12px;
+  min-height: 40px;
+  border: none;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-body);
+  white-space: nowrap;
+}
+.slot-btn-save {
+  background: var(--moss-600);
+  color: #fff;
+}
+.slot-btn-load {
+  background: var(--paper);
+  color: var(--moss-800);
+  border: 1.5px solid var(--moss-600);
+}
+.slot-btn-load:disabled {
+  color: var(--ink-soft);
+  border-color: var(--moss-300);
+  cursor: not-allowed;
+}
+
+/* 위험 영역 (초기화) */
+.settings-card-danger {
+  border-color: #F5DCE0;
+}
+.danger-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #9E3549;
+}
+.danger-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #9E3549;
+}
+
+/* 초기화 확인 모달 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 34, 26, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.modal-overlay[hidden] { display: none; }
+
+.modal-box {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  color: var(--ink);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.modal-desc {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin: 0 0 18px;
+  line-height: 1.4;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+}
+.modal-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.modal-btn-cancel {
+  background: var(--moss-100);
+  color: var(--ink);
+}
+.modal-btn-danger {
+  background: var(--berry);
+  color: #fff;
+}
+.modal-btn-primary {
+  background: linear-gradient(180deg, var(--moss-600), var(--moss-800));
+  color: #fff;
+}
+
+/* 목표 달성(빚 다 갚음) 축하 모달 */
+.victory-modal-box {
+  text-align: center;
+}
+.victory-emoji {
+  font-size: 44px;
+  margin: 0 0 6px;
+}
+.victory-modal-box .modal-title {
+  font-size: 18px;
+}
+.victory-modal-box .modal-desc {
+  font-size: 13px;
+}
+
+/* 맞다이 신청 확인/결과 모달 */
+.fight-challenge-modal-box,
+.fight-result-modal-box {
+  text-align: center;
+}
+.fight-challenge-emoji,
+.fight-result-emoji {
+  font-size: 44px;
+  margin: 0 0 6px;
+}
+.fight-challenge-modal-box .modal-title,
+.fight-result-modal-box .modal-title {
+  font-size: 16px;
+}
+.fight-challenge-modal-box .modal-desc,
+.fight-result-modal-box .modal-desc {
+  font-size: 13px;
+  line-height: 1.6;
+}
+#fight-challenge-cost {
+  color: var(--berry);
+}
+.fight-result-modal-box.result-fail .modal-title {
+  color: var(--clay-dark);
+}
