@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>동물 마을 키우기</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="game-root">
+
+  <!-- ① 메인 캐릭터 영역 -->
+  <div id="main-stage" class="stage-bg stage-1">
+    <!-- 배경 이미지 레이어: 이미지가 준비되면 여기에 뜨고, 없으면(로드 실패) onerror로 스스로
+         숨어서 #main-stage 자체의 그라디언트 배경(.stage-bg.stage-N)이 그대로 보인다. -->
+    <img id="main-stage-bg-img" class="stage-bg-img" alt=""
+         onerror="this.hidden=true;" hidden />
+    <!-- ② 목표(빚) 진행바: 라벨은 바 바깥 위쪽에 두어 게이지를 가리지 않게 하고,
+         바 안에는 "남은 빚" 금액을 텍스트로 보여준다 -->
+    <div id="goal-panel">
+      <span class="goal-panel-label" id="goal-label">디디의 빚</span>
+      <div class="goal-progress-track">
+        <div class="goal-progress-fill" id="progress-fill"></div>
+        <span class="goal-progress-text" id="goal-remaining-text">178.3억원 남음</span>
+      </div>
+    </div>
+
+    <!-- 업적 달성 토스트: 게이지 바로 아래에 잠깐 떴다 사라짐 (마인크래프트 도전과제 느낌) -->
+    <div id="achievement-toast" class="achievement-toast" hidden>
+      <span class="achievement-toast-icon" id="achievement-toast-icon">🏆</span>
+      <div class="achievement-toast-text">
+        <span class="achievement-toast-label">도전과제 달성!</span>
+        <span class="achievement-toast-name" id="achievement-toast-name"></span>
+      </div>
+    </div>
+
+    <!-- 업적(트로피) 버튼: 캐릭터 영역 우측 하단 -->
+    <button id="achievement-btn" class="achievement-btn" aria-label="도전과제 보기">🏆</button>
+
+    <!-- "맞다이 신청" 버튼: 트로피와 같은 가로 선상 왼쪽 끝. 정상우 모드 + Stage 5일 때만 나타난다 -->
+    <button id="fight-challenge-btn" class="fight-challenge-btn" hidden>🥊 맞다이 신청</button>
+
+    <div id="popup-layer"></div>
+
+    <div id="village-deco" aria-hidden="true"></div>
+
+    <button id="main-character" aria-label="디디를 클릭해서 돈 벌기">
+      <!-- 평소 캐릭터 그룹: 이미지 로드 성공 시 <img>가 보이고, 실패(파일 없음)하면 onerror로
+           스스로 숨고 이모지 폴백이 대신 보인다. JS는 이 그룹(#char-group-normal) 전체의
+           hidden만 토글하고, 그 안에서 이미지/이모지 중 뭐가 보일지는 onerror가 알아서 정한다. -->
+      <div id="char-group-normal" class="char-group">
+        <img src="assets/character/main_stage1.png" id="char-svg-normal" class="char-svg" alt="디디"
+             onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+        <span class="char-fallback" hidden>🐰</span>
+      </div>
+
+      <!-- 도박 최저확률 당첨 시 표시되는 대체 캐릭터 그룹 (정상우의 빚 모드).
+           이미지가 준비되면 <img>가 우선 쓰이고, 없으면(로드 실패) 기존에 있던 손그림 SVG가
+           폴백으로 그대로 보인다. -->
+      <div id="char-group-debtor" class="char-group" hidden>
+        <img src="assets/character/debtor_stage1.png" id="char-img-debtor" class="char-svg" alt="정상우의 빚"
+             onerror="this.hidden=true; document.getElementById('char-svg-debtor').removeAttribute('hidden');" />
+        <svg viewBox="0 0 200 200" width="120" height="120" id="char-svg-debtor" class="char-svg" hidden>
+        <!-- 어두운 톤의 지친 동물 캐릭터 -->
+        <ellipse cx="100" cy="150" rx="46" ry="34" fill="#D8CFC2"/>
+        <ellipse id="arm-left-2" cx="62" cy="140" rx="12" ry="22" fill="#D8CFC2" transform="rotate(-15 62 140)"/>
+        <ellipse id="arm-right-2" cx="138" cy="140" rx="12" ry="22" fill="#D8CFC2" transform="rotate(15 138 140)"/>
+        <ellipse cx="80" cy="182" rx="14" ry="10" fill="#C5BAA9"/>
+        <ellipse cx="120" cy="182" rx="14" ry="10" fill="#C5BAA9"/>
+        <ellipse cx="78" cy="55" rx="12" ry="38" fill="#D8CFC2" transform="rotate(-12 78 55)"/>
+        <ellipse cx="122" cy="55" rx="12" ry="38" fill="#D8CFC2" transform="rotate(12 122 55)"/>
+        <ellipse cx="78" cy="58" rx="6" ry="26" fill="#8B94A0" transform="rotate(-12 78 58)"/>
+        <ellipse cx="122" cy="58" rx="6" ry="26" fill="#8B94A0" transform="rotate(12 122 58)"/>
+        <circle cx="100" cy="105" r="48" fill="#D8CFC2"/>
+        <!-- 다크서클 -->
+        <ellipse cx="84" cy="110" rx="10" ry="5" fill="#8B94A0" opacity="0.5"/>
+        <ellipse cx="116" cy="110" rx="10" ry="5" fill="#8B94A0" opacity="0.5"/>
+        <!-- 눈 (지친 반달눈) -->
+        <path d="M 77 101 Q 84 96 91 101" stroke="#3E3226" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M 109 101 Q 116 96 123 101" stroke="#3E3226" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="100" cy="112" rx="4" ry="3" fill="#B79E93"/>
+        <!-- 입 (울상) -->
+        <path d="M 90 122 Q 100 116 110 122" stroke="#3E3226" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- 소품: 빚 문서 -->
+        <g id="tool-2" transform="translate(140,118) rotate(15)">
+          <rect x="-14" y="-20" width="28" height="36" rx="2" fill="#F5EFE3" stroke="#B79E93" stroke-width="1.5"/>
+          <line x1="-8" y1="-10" x2="8" y2="-10" stroke="#B79E93" stroke-width="2"/>
+          <line x1="-8" y1="-2" x2="8" y2="-2" stroke="#B79E93" stroke-width="2"/>
+          <line x1="-8" y1="6" x2="4" y2="6" stroke="#B79E93" stroke-width="2"/>
+        </g>
+      </svg>
+      </div>
+    </button>
+
+  </div>
+  <!-- ③ 상단 메인 탭 (클릭/고용/확인/도박/설정) -->
+  <nav id="main-tabs">
+    <button class="tab-btn active" data-tab="click" id="tab-btn-click"><span id="click-tab-icon">🌱</span> <span id="click-tab-label">디디</span></button>
+    <button class="tab-btn" data-tab="hire">🏘️ 고용</button>
+    <button class="tab-btn" data-tab="villagers">📋 주민</button>
+    <button class="tab-btn tab-btn-gamble" data-tab="gamble">🎰 도박</button>
+    <button class="tab-btn tab-btn-settings" data-tab="settings">⚙️ 설정</button>
+  </nav>
+
+  <!-- 현재 금액: 탭 바로 아래, 콘텐츠 영역 시작 지점에 고정 -->
+  <div id="current-money-bar">
+    <span class="current-money-label">현재 금액</span>
+    <span class="current-money-value" id="current-money">0원</span>
+  </div>
+
+  <!-- ④ 콘텐츠 영역 -->
+  <main id="content-area">
+
+    <section id="tab-click" class="tab-panel active">
+      <div class="upgrade-card">
+        <div class="upgrade-header">
+          <span class="upgrade-icon" id="upgrade-card-icon">🌱</span>
+          <div class="upgrade-title">
+            <h2 id="upgrade-card-title">디디 강화</h2>
+            <p class="upgrade-sub" id="upgrade-card-sub">디디를 클릭할 때마다 얻는 돈을 늘려요</p>
+          </div>
+        </div>
+
+        <div class="upgrade-stats">
+          <div class="stat-box">
+            <span class="stat-label">디디 레벨</span>
+            <span class="stat-value" id="click-level">Lv.1</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">현재 수익</span>
+            <span class="stat-value" id="click-income">+1원 / 클릭</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">다음 레벨</span>
+            <span class="stat-value" id="click-next-income">+2원 / 클릭</span>
+          </div>
+        </div>
+
+        <button id="upgrade-btn" class="upgrade-btn">
+          <span class="upgrade-btn-label">강화하기</span>
+          <span class="upgrade-btn-cost" id="upgrade-cost">10원</span>
+        </button>
+      </div>
+
+      <p class="coming-soon">🏘️ 주민 고용에서 새 주민을 만나보세요</p>
+    </section>
+
+    <!-- 주민 고용 화면: 테마별 서브탭 + 그 안에서만 스크롤. 한 테마를 모두 고용해야 다음 테마가 열림 -->
+    <section id="tab-hire" class="tab-panel">
+      <nav id="hire-theme-tabs" class="sub-tabs"></nav>
+      <div id="hire-theme-content"></div>
+    </section>
+
+    <!-- 주민 확인 화면: 5개 테마 서브탭 + 테마별 콘텐츠. 이미지 위주로 간단하게, 슬롯도 game.js가 동적 렌더링 -->
+    <section id="tab-villagers" class="tab-panel">
+      <nav id="theme-tabs" class="sub-tabs">
+        <button class="theme-btn active" data-theme="forest">🌳</button>
+        <button class="theme-btn" data-theme="farm">🥕</button>
+        <button class="theme-btn" data-theme="sea">🐟</button>
+        <button class="theme-btn" data-theme="mine">⛏️</button>
+        <button class="theme-btn" data-theme="star">⭐</button>
+      </nav>
+
+      <div id="theme-content">
+        <div id="theme-forest" class="theme-panel active"></div>
+        <div id="theme-farm" class="theme-panel"></div>
+        <div id="theme-sea" class="theme-panel"></div>
+        <div id="theme-mine" class="theme-panel"></div>
+        <div id="theme-star" class="theme-panel"></div>
+      </div>
+    </section>
+
+    <section id="tab-gamble" class="tab-panel">
+      <div class="gamble-card">
+        <div class="gamble-header">
+          <span class="upgrade-icon">🎰</span>
+          <div class="upgrade-title">
+            <h2>돌림판 도박</h2>
+            <p class="upgrade-sub">한 번 돌릴 때마다 10,000원이 들어요</p>
+          </div>
+        </div>
+
+        <div class="wheel-row">
+          <div id="wheel-wrap" class="wheel-wrap">
+            <div class="wheel-pointer">▼</div>
+            <div id="wheel" class="wheel"></div>
+          </div>
+          <button id="payout-table-btn" class="payout-table-btn" aria-label="확률표 보기">
+            <span class="payout-table-icon">📊</span>
+            <span class="payout-table-text">확률표</span>
+          </button>
+        </div>
+
+        <button id="spin-btn" class="upgrade-btn">
+          <span class="upgrade-btn-label">돌리기</span>
+          <span class="upgrade-btn-cost" id="spin-cost">10,000원</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 설정 화면: 배속 선택 + 저장 슬롯 3개 + 게임 초기화 -->
+    <section id="tab-settings" class="tab-panel">
+
+      <div class="settings-card">
+        <h2 class="settings-title">⚡ 게임 속도</h2>
+        <div id="speed-options" class="speed-options">
+          <button class="speed-btn" data-speed="1">×1</button>
+          <button class="speed-btn" data-speed="2">×2</button>
+          <button class="speed-btn" data-speed="3">×3</button>
+        </div>
+        <p class="settings-hint" id="speed-hint"></p>
+      </div>
+
+      <div class="settings-card">
+        <h2 class="settings-title">💾 저장</h2>
+        <div id="save-slots" class="save-slots"></div>
+      </div>
+
+      <div class="settings-card settings-card-danger">
+        <h2 class="settings-title">🔄 처음부터 다시 시작</h2>
+        <p class="settings-hint">선택한 슬롯의 모든 진행 상황이 삭제돼요.</p>
+        <button id="reset-btn" class="danger-btn">게임 초기화</button>
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+<!-- 게임 초기화 확인 모달 -->
+<div id="reset-modal" class="modal-overlay" hidden>
+  <div class="modal-box">
+    <p class="modal-title">정말 처음부터 다시 시작하시겠습니까?</p>
+    <p class="modal-desc">현재 슬롯의 모든 진행 상황이 삭제됩니다.</p>
+    <div class="modal-actions">
+      <button id="reset-cancel-btn" class="modal-btn modal-btn-cancel">취소</button>
+      <button id="reset-confirm-btn" class="modal-btn modal-btn-danger">처음부터 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- 룰렛 확률표 모달 -->
+<div id="payout-modal" class="modal-overlay" hidden>
+  <div class="modal-box payout-modal-box">
+    <p class="modal-title">🎰 확률표</p>
+    <div id="payout-list" class="payout-list"></div>
+    <div class="modal-actions">
+      <button id="payout-close-btn" class="modal-btn modal-btn-cancel">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 목표 달성(빚 다 갚음) 축하 모달 -->
+<div id="victory-modal" class="modal-overlay" hidden>
+  <div class="modal-box victory-modal-box">
+    <p class="victory-emoji">🎉</p>
+    <p class="modal-title">빚을 모두 갚았어요!</p>
+    <p class="modal-desc" id="victory-desc">178.3억원을 전부 모았어요. 정말 대단해요!</p>
+    <div class="modal-actions">
+      <button id="victory-reset-btn" class="modal-btn modal-btn-cancel">초기화하기</button>
+      <button id="victory-continue-btn" class="modal-btn modal-btn-primary">계속하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 도전과제(업적) 목록 모달 -->
+<div id="achievement-modal" class="modal-overlay" hidden>
+  <div class="modal-box achievement-modal-box">
+    <p class="modal-title">🏆 도전과제</p>
+    <p class="achievement-progress-text" id="achievement-progress-text">0 / 15 달성</p>
+    <div id="achievement-list" class="achievement-list"></div>
+    <div class="modal-actions">
+      <button id="achievement-close-btn" class="modal-btn modal-btn-cancel">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 맞다이 신청 확인 모달: 참가할지 말지 선택 -->
+<div id="fight-challenge-modal" class="modal-overlay" hidden>
+  <div class="modal-box fight-challenge-modal-box">
+    <p class="fight-challenge-emoji">🥊</p>
+    <p class="modal-title">정상우에게 맞다이를 신청할까요?</p>
+    <p class="modal-desc" id="fight-challenge-desc">
+      참가비 <strong id="fight-challenge-cost">10억원</strong>을 내고 도전합니다.<br>
+      성공(50%)하면 빚을 모두 갚고, 실패(50%)하면 빚이 2배가 돼요.
+    </p>
+    <div class="modal-actions">
+      <button id="fight-challenge-cancel-btn" class="modal-btn modal-btn-cancel">그만두기</button>
+      <button id="fight-challenge-confirm-btn" class="modal-btn modal-btn-danger">신청한다</button>
+    </div>
+  </div>
+</div>
+
+<!-- 맞다이 신청 결과 모달 -->
+<div id="fight-result-modal" class="modal-overlay" hidden>
+  <div class="modal-box fight-result-modal-box">
+    <p class="fight-result-emoji" id="fight-result-emoji">🎉</p>
+    <p class="modal-title" id="fight-result-title">승리했어요!</p>
+    <p class="modal-desc" id="fight-result-desc"></p>
+    <div class="modal-actions">
+      <button id="fight-result-close-btn" class="modal-btn modal-btn-primary">확인</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

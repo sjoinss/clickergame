@@ -1,0 +1,1753 @@
+/* ============================================================
+   동물 마을 키우기 — Phase 1
+   클릭 → 돈 획득 → 클릭 업그레이드 → 메인 캐릭터 Stage 발전
+
+   이후 Phase(주민/테마/저장/방치/배속)를 쉽게 얹을 수 있도록
+   데이터(CONFIG)와 로직(state, 함수)을 분리해서 관리한다.
+   ============================================================ */
+
+/* ---------------------------------------------------------
+   1. 게임 설정 데이터 (밸런스는 여기서만 수정)
+   --------------------------------------------------------- */
+const CONFIG = {
+  // 최종 목표 금액
+  goalMoney: 17825790000,
+
+  // "맞다이 신청": 정상우 모드 + Stage 5(최종 단계)일 때만 나타나는 도박성 이벤트.
+  // 참가비를 내고 50% 확률로 (실패) 빚이 2배로 불어나거나, (성공) 빚을 전부 청산한다.
+  // 실패할 때마다 다음 참가비도 함께 2배로 뛰어서 점점 더 위험해지는 구조.
+  // 첫 참가비 10억은 목표금액(178억)의 약 5.6% 수준으로, 5번 연속 실패해도 320억(목표의 약 1.8배) 선에서
+  // 감당 가능한 범위로 설계했다 — 그 이상은 사실상 실패를 각오한 도박이 된다.
+  fightChallenge: {
+    baseCost: 1000000000, // 첫 참가비 10억원
+    costMultiplierOnFail: 2, // 실패할 때마다 다음 참가비도 2배
+    successChance: 0.5, // 성공 확률 50%
+  },
+
+  // 클릭 업그레이드: 레벨별 클릭 수익과 다음 레벨 비용을 공식으로 계산
+  // ※ 재조정 (기존 22% 성장률은 레벨150(Stage5)에서 클릭당 7조원까지 폭주하는 심각한 밸런스
+  //   붕괴가 있었다 — 실제 시뮬레이션으로 레벨별 클릭수익을 전수 검증해서 발견/수정했다.
+  //   성장률을 10%로 낮추고, 그 대신 레벨 자체가 훨씬 많이 필요하도록(문턱값 재계산) 바꿔서
+  //   "레벨은 많이 올라가지만 각 레벨의 수익 폭증은 완만한" 구조로 다시 잡았다.
+  //   Lv100 클릭수익 약 1.3만원, Lv150 약 150만원 수준으로 확인.)
+  // ※ 밸런스 4차 재조정 (버그: 저레벨 구간에서 수익이 "level" 하한선 덕분에 사실상 레벨만큼
+  //   강제로 붙는데, 비용(getUpgradeCost)에는 그런 하한선이 없어서 순수 지수값 그대로였다 —
+  //   예: Lv10에서 수익은 하한선(10원) 적용인데 다음 비용은 24원으로, 초반 수익 대비 비용이
+  //   지나치게 저렴해 "버는 건 느는데 비용은 찔끔"으로 체감되는 원인이었다. 비용에도 동일한
+  //   방식의 레벨 하한선(costMinPerLevel)을 추가해서, 하한선이 걸리는 구간이든 아니든 항상
+  //   "비용 ≈ 수익의 8~10배" 비율이 유지되도록 고쳤다.)
+  // ※ 밸런스 5차 재조정 (버그: 클릭/주민/도박을 최적 순서로 플레이하는 시뮬레이션을 실제로 끝까지
+  //   돌려보니, "목표금액 도달 ≈ 68분" 설계 의도와 다르게 클릭 업그레이드만으로 5분 만에 최종
+  //   스테이지(Lv150)까지 뚫려버리고, 게임 전체도 15분 만에 끝나버렸다. 4차 조정에서 클릭 비용에
+  //   하한선을 추가하며 "비용/수익 비율"만 맞추고 "레벨업 절대 속도"는 재검증하지 못했던 게 원인 —
+  //   costGrowth(1.10)가 여전히 낮아서 레벨이 순식간에 수백까지 올라가며 수익이 지수적으로 폭주했다.
+  //   → click.costGrowth를 1.115로 올려서(레벨당 비용 상승폭을 키움), 같은 시뮬레이션(초당 5클릭
+  //     가정)으로 재검증한 결과 "목표금액 도달 ≈ 66분"으로 원래 설계 의도에 다시 맞춘 것을 확인했다.
+  // ※ 밸런스 6차 재조정 (버그: 주민 강화에는 만렙(villagerMaxLevelByIndex)이 있는데 클릭 레벨에는
+  //   상한이 없어서, 오래 플레이하거나 방치할수록 클릭당 수익이 조·경 단위를 넘어 이론상 무한대로
+  //   커질 수 있었다 — 화면 표시 단위(만/억/조/경)로는 도저히 감당이 안 되는 규모. 주민과 똑같이
+  //   "만렙" 개념을 클릭에도 도입해서 maxLevel(150 = 최종 스테이지 진입 레벨)에서 더 이상 못
+  //   올라가게 막았다. maxLevel 150으로 캡을 걸고도 최적 플레이 시뮬레이션으로 재검증한 결과
+  //   79분 만에 목표금액 도달에 성공해서, 엔딩을 보는 데는 지장이 없는 것도 확인했다.)
+  click: {
+    baseIncome: 1,        // Lv.1 클릭당 수익
+    incomeGrowth: 1.10,    // 레벨당 수익 증가 배율
+    baseCost: 10,          // Lv.1 → Lv.2 업그레이드 비용
+    costGrowth: 1.115,     // 레벨당 비용 증가 배율 (밸런스 5차: 1.10 -> 1.115로 상향, 레벨업 폭주 방지)
+    costMinPerLevel: 8,    // 비용도 레벨당 최소 이만큼씩은 오르도록 하는 하한선 기울기 (수익 하한선과 짝을 맞춤)
+    maxLevel: 150,         // 클릭 레벨 만렙 (밸런스 6차: 숫자 무한 폭주 방지. 최종 스테이지(Stage5) 진입 레벨과 동일)
+  },
+
+  // 메인 캐릭터 Stage 전환 레벨 (클릭 레벨이 이 값에 도달하면 배경/캐릭터 변화)
+  // 새 클릭 성장률(1.10) 기준으로 재계산: 첫 주민(500원)을 살 수 있는 시점이 약 213클릭(레벨43)이라,
+  // Stage2 전환이 그보다 확실히 늦게 오도록 재조정했다.
+  stageThresholds: [1, 50, 80, 110, 150], // Stage 1~5 시작 레벨
+
+  // Stage별 이미지 경로. 실제 파일이 준비되면 이 값만 채우면 된다(비어있으면 기존 단색 배경/PNG로 대체).
+  // normal: 평소 메인 캐릭터, debtor: 도박 최저확률 당첨 시 캐릭터, background: 메인 배경.
+  // debtor 이미지는 "그 시점의 Stage와 같은 단계"를 써야 한다(예: Stage 2 상태에서 당첨되면 debtor도 Stage 2 이미지).
+  stageAssets: [
+    { normal: "assets/character/main_stage1.png", debtor: "assets/character/debtor_stage1.png", background: "assets/background/main_stage1.png" },
+    { normal: "assets/character/main_stage2.png", debtor: "assets/character/debtor_stage2.png", background: "assets/background/main_stage2.png" },
+    { normal: "assets/character/main_stage3.png", debtor: "assets/character/debtor_stage3.png", background: "assets/background/main_stage3.png" },
+    { normal: "assets/character/main_stage4.png", debtor: "assets/character/debtor_stage4.png", background: "assets/background/main_stage4.png" },
+    { normal: "assets/character/main_stage5.png", debtor: "assets/character/debtor_stage5.png", background: "assets/background/main_stage5.png" },
+  ],
+
+  // 배속 설정: ×1은 기본, ×2/×3은 해금 조건을 만족해야 선택 가능
+  // 해금 조건은 checkUnlocked(state)가 매번 계산 — 저장값이 아니라 항상 현재 상태 기준으로 판단한다.
+  speeds: [
+    { value: 1, label: "×1", checkUnlocked: () => true },
+    { value: 2, label: "×2", checkUnlocked: (s) => CONFIG.villagers.every((v) => s.villagers[v.id]?.hired) },
+    { value: 3, label: "×3", checkUnlocked: (s) => CONFIG.villagers.every((v) => (s.villagers[v.id]?.level ?? 1) >= 15) },
+  ],
+
+  // 저장 슬롯 개수 (기획서: 정확히 3개)
+  saveSlotCount: 3,
+
+  // 도박(돌림판) 설정
+  // ※ 밸런스 5차 재조정 (버그: 기존 weight 조합의 배수 기댓값을 실제로 계산해보니 1.134
+  //   (=113.4% 회수율)로, 스핀할 때마다 평균적으로 참가비의 13.4%를 순수 이득으로 얻는 구조였다.
+  //   이러면 "그냥 도박만 계속 돌리는 게 클릭/주민 관리보다 압도적으로 유리"해져 버려서, 다른
+  //   모든 밸런스 조정이 무의미해지는 심각한 문제였다. 실제 슬롯머신류 확률형 게임의 회수율
+  //   (통상 90~97%, 기댓값<1)을 참고해서, 배수 라인업(×0.2~×5)은 그대로 두고 저배수(0.7/0.5/0.4)
+  //   weight를 늘리고 고배수(2/3) weight를 줄여 기댓값을 0.959(회수율 95.9%)로 낮췄다 — "가끔 크게
+  //   따는 손맛"은 남기되, 장기적으로는 하는 만큼 손해가 나서 다른 수익 수단을 대체하지 못하게 했다.
+  gamble: {
+    spinCost: 10000, // 1회 참가 비용
+
+    // 돌림판 배수 구간 (×0.2 ~ ×5). weight가 클수록 잘 나옴. (총합 1000 기준으로
+    // "정상우" 확률을 0.5%까지 정밀하게 표현한다.)
+    // 1배 / 0.7배를 가장 두텁게, 최저 확률(0.5%, "정상우")에 특수 이벤트를 건다.
+    // 정상우는 돈을 잃거나 얻지 않고(배수 적용 없이 참가비 그대로 돌려줌), 캐릭터만 전환된다.
+    segments: [
+      { multiplier: 1,    weight: 280, label: "×1" },
+      { multiplier: 0.7,  weight: 260, label: "×0.7" },
+      { multiplier: 1.5,  weight: 110, label: "×1.5" },
+      { multiplier: 0.5,  weight: 180, label: "×0.5" },
+      { multiplier: 2,    weight: 60,  label: "×2" },
+      { multiplier: 0.4,  weight: 80,  label: "×0.4" },
+      { multiplier: 3,    weight: 20,  label: "×3" },
+      { multiplier: 5,    weight: 5,   label: "×5" },
+      { multiplier: 1,    weight: 5,   label: "???", isJackpotBad: true }, // 최저 확률(0.5%): 당첨 시 캐릭터가 "정상우의 빚"으로 전환, 돈은 그대로(원금 반환)
+    ],
+  },
+
+  // 주민 확인 화면의 5개 테마 (Phase 4에서 각 테마에 주민 3명씩 채울 예정)
+  themes: [
+    { id: "forest", icon: "🌳", name: "나무 테마" },
+    { id: "farm",   icon: "🥕", name: "당근 테마" },
+    { id: "sea",    icon: "🐟", name: "물고기 테마" },
+    { id: "mine",   icon: "⛏️", name: "광산 테마" },
+    { id: "star",   icon: "⭐", name: "별 테마" },
+  ],
+
+  // 주민 데이터 (Phase 4: 5개 테마 × 3명 = 15명 전체)
+  // 테마 안에서 3단계(입문/중급/고급)로, 테마 사이에서도 점점 비싸지도록 설계했다.
+  //
+  // ※ 밸런스 재설계 2차 (핵심 문제: 유니콘 만렙까지 총비용이 596억원으로 목표금액 178억원의
+  //   3.3배를 넘어서, 사실상 유니콘을 만렙까지 강화하는 게 불가능한 설계였다 — 실제로
+  //   getVillagerUpgradeCost를 레벨1~30까지 전부 합산해서 검증하다가 발견했다.)
+  //   → 고용비/수익 성장률을 2.0배로 낮추고(이전 2.4배/2.38배), 강화 초기비용도 고용비의
+  //     0.9배로 낮춰서, 유니콘 혼자 만렙까지 가는 총비용이 목표금액의 약 10.7%(19억원대)로
+  //     충분히 감당 가능한 수준이 되도록 다시 계산했다. 15명 전체 총비용도 목표금액의
+  //     21.5%뿐이라, 강화/고용에 다 쓰고도 자동생산만으로 목표금액을 채울 시간이 충분하다.
+  //   - 고용비/수익 모두 티어당 2.0배 상승 (첫 주민 500원 → 마지막 유니콘 819만원대)
+  //   - 강화(레벨)는 최대 30까지, 레벨당 수익/비용이 13%씩 상승
+  //   - "15명 전원 고용+만렙 도달 ≈ 61분, 목표금액 도달 ≈ 68분"이 되도록 시뮬레이션으로 재검증했다.
+  //   - 표시 끝자리가 지저분해지지 않도록 고용비/강화비는 10원~1만원 단위로 반올림했다
+  //     (10,000원 미만: 10원 단위 / 100만원 미만: 100원 단위 / 1억원 미만: 1000원 단위 / 그 이상: 1만원 단위)
+  //
+  // ※ 밸런스 3차 재조정: 쿠키클리커의 실제 공개 수치(첫 건물 "커서"는 초당 0.1개, 클릭 1회가
+  //   1개인 것과 비교하면 첫 건물 생산량이 클릭 수익보다도 작다 — 그리고 건물 등급마다 기본
+  //   생산량이 대략 5~10배씩 뛴다)를 다시 참고해서 확인해보니, 이전 버전은 토끼(첫 주민)가
+  //   초당 5원으로 클릭 레벨1 수익(1원)보다 더 컸다. 첫 주민은 "클릭 수익과 비슷하거나 낮게"
+  //   시작해야 한다는 원칙에 맞게 초당 1원으로 낮추고, 티어당 배율도 수익 2.5배/고용비 2.2배로
+  //   재조정했다. 유니콘 만렙까지 총비용도 목표금액의 5.65%로 넉넉하게 유지된다.
+  //
+  // ※ 밸런스 4차 재조정 (버그: "다람쥐를 왜 사니" 문제 — 토끼를 고용 후 딱 1레벨만 강화해도
+  //   (500원+450원=950원) 다람쥐 생고용(1100원)과 똑같이 초당 2원이 나와서, 새 주민을 사는
+  //   의미가 사라졌었다. 원인은 baseUpgradeCost가 hireCost의 0.9배로 너무 싸고, upgradeCostGrowth(1.13)도
+  //   낮아서 "강화 1회의 비용 대비 수익증가 효율"이 "다음 티어 고용의 효율"보다 항상 더 좋았기 때문.
+  //   → baseUpgradeCost를 hireCost의 2.0배로, upgradeCostGrowth를 1.15로 올려서, 강화를 시작하는
+  //     순간부터는 항상 다음 티어를 고용하는 쪽이 돈 대비 효율이 더 좋도록 재계산했다(단, 강화 자체가
+  //     쓸모없어지진 않게 — 새 주민을 살 돈이 모이기 전까지 쓰는 "보조 수단"으로는 여전히 매력적이다).
+  //   15명 전체 총비용도 다시 검증해서 목표금액의 30.6%로, 자동생산 시간을 충분히 남기는 수준을 유지했다.
+  //
+  // ※ 밸런스 5차 재조정 (버그: 클릭/주민/도박을 최적 순서로 플레이하는 시뮬레이션을 실제로 끝까지
+  //   돌려보니, "목표금액 도달 ≈ 68분" 설계 의도와 다르게 클릭 업그레이드만으로 5분 만에 최종
+  //   스테이지(Lv150)까지 뚫려버리고, 게임 전체도 15분 만에 끝나버렸다. 4차 조정에서 클릭 비용에
+  //   하한선을 추가하며 "비용/수익 비율"만 맞추고 "레벨업 절대 속도"는 재검증하지 못했던 게 원인 —
+  //   costGrowth(1.10)가 여전히 낮아서 레벨이 순식간에 수백까지 올라가며 수익이 지수적으로 폭주했다.
+  //   → click.costGrowth를 1.115로 올려서(레벨당 비용 상승폭을 키움), 같은 시뮬레이션(초당 5클릭
+  //     가정)으로 재검증한 결과 "목표금액 도달 ≈ 66분"으로 원래 설계 의도에 다시 맞춘 것을 확인했다.
+  // 이름/이모지는 임시로 붙여둔 것이라 나중에 쉽게 바꿀 수 있다.
+  // 이미지 경로도 데이터로만 들고 있고, 실제 에셋이 준비되면 이 값만 교체하면 된다.
+  villagerMaxLevelBase: 30, // 주민 강화 최대 레벨의 "기준값"(첫 주민 토끼 기준). 맞다이 신청 실패로 빚이 늘어날 때마다 이 값도 함께 늘어난다(getVillagerMaxLevel 참고)
+  villagerMaxLevelPerFail: 10, // 맞다이 신청 실패 1회당 상한이 늘어나는 레벨 수
+
+  // ※ 밸런스 7차 재조정: "모든 주민이 꼭 1초당 얻는 방식이어야 하는 건 아니다"는 요청에 따라,
+  //   AdVenture Capitalist 같은 실제 방치형 게임을 참고해서 도입한 생산 주기 시스템. baseIncome
+  //   (1회 지급액)은 그대로 유지하고, 대신 "몇 초에 한 번 지급되는지"를 주민별 baseInterval로
+  //   따로 관리한다(getVillagerInterval 참고) — 즉 초반 주민(토끼)은 "8초당 1원"처럼 느리게
+  //   시작해서 레벨이 오를수록 주기가 villagerIntervalDecay 배율로 점점 짧아지고,
+  //   villagerMinInterval(1초) 밑으로는 아무리 강화해도 더 짧아지지 않는다. 후반 주민(여우,
+  //   유니콘)은 티어 자체가 높아서 baseInterval을 처음부터 1초로 잡아, 이미 "매초 지급"으로
+  //   시작한다. 소수점 지급액(0.2원 등)은 쓰지 않고 항상 정수만 지급한다.
+  //   전체 최적 플레이 시뮬레이션으로 재검증한 결과 66.9분으로, 도입 전(65.9분)과 거의
+  //   동일한 진행 속도가 유지되는 것을 확인했다(초반 방치 체감은 확실히 달라지지만, 클릭과
+  //   강화를 병행하는 정상 플레이에서는 주기가 금방 짧아져 전체 소요 시간에 큰 영향이 없다).
+  villagerIntervalDecay: 0.90, // 레벨업 1회당 주기가 줄어드는 배율 (10%씩 단축)
+  villagerMinInterval: 1, // 주기가 아무리 짧아져도 이 값(초) 밑으로는 내려가지 않는다
+
+  // 주민마다 기본 레벨 상한이 다르다 — 후반 주민일수록 상한이 낮아져서(첫 토끼 30 → 마지막
+  // 유니콘 15) 만렙까지 강화하는 부담이 점점 줄어드는 구조. villagers 배열 순서와 1:1로 대응한다.
+  // (맞다이 신청 실패 시 늘어나는 보너스는 모든 주민에게 동일하게 +10씩 적용된다.)
+  villagerMaxLevelByIndex: [30, 29, 28, 27, 26, 25, 24, 22, 21, 20, 19, 18, 17, 16, 15],
+
+  // 주민별 캐릭터 모션(아직 미정이라 비워두고, 나중에 정해지면 여기만 채우면 된다).
+  // 값은 CSS 클래스 이름(예: "motion-bounce", "motion-sway", "motion-float")을 넣으면
+  // buildVillagerDom()이 자동으로 .villager-emoji / .villager-character-img에 붙여준다.
+  // 지정 안 된 주민은 모션 없이 정지 상태로 표시된다.
+  villagerMotions: {
+    // forest_01: "motion-bounce",
+    // sea_01: "motion-sway",
+  },
+
+  // 업적(도전과제) 15개. 순서는 실제 플레이 진행 순서를 대략 따른다.
+  // check(state)가 true를 반환하면 달성. 한 번 달성되면 다시 잠기지 않는다(state.achievements에 기록).
+  // gambleWinInfo, debtorEncountered 등은 도박 결과가 나올 때마다 state에 기록해두는 값이다(아래 참고).
+  achievements: [
+    { id: "first_money", name: "첫 발걸음", desc: "처음으로 돈을 벌었어요", icon: "🐣",
+      // s.lifetimeMoneyEarned는 실제로 어디서도 정의/갱신되지 않는 필드였다(참조만 하고 항상
+      // undefined) — money > 0 조건만으로 이미 정확히 판정되니 죽은 조건을 정리했다.
+      check: (s) => s.money > 0 },
+    { id: "click_lv10", name: "손가락 워밍업", desc: "클릭 레벨 10 달성", icon: "👆",
+      check: (s) => s.clickLevel >= 10 },
+    { id: "first_hire", name: "첫 동료", desc: "첫 주민을 고용했어요", icon: "🏘️",
+      check: (s) => CONFIG.villagers.some((v) => s.villagers[v.id]?.hired) },
+    { id: "first_gamble", name: "한 번 해볼까?", desc: "도박을 처음 해봤어요", icon: "🎰",
+      check: (s) => s.gambleSpinCount > 0 },
+    { id: "forest_complete", name: "숲의 주인", desc: "나무 테마 주민 3명 모두 고용", icon: "🌳",
+      check: (s) => isThemeFullyHired("forest") },
+    { id: "gamble_win_x3", name: "대박!", desc: "도박에서 ×3 이상 배수 당첨", icon: "💰",
+      check: (s) => s.bestGambleMultiplier >= 3 },
+    { id: "farm_complete", name: "농장 경영자", desc: "당근 테마 주민 3명 모두 고용", icon: "🥕",
+      check: (s) => isThemeFullyHired("farm") },
+    { id: "debtor_encounter", name: "정상우와의 조우", desc: "도박에서 최저확률에 당첨됐어요", icon: "👻",
+      check: (s) => s.debtorEncountered },
+    { id: "villager_lv30", name: "전문가", desc: "주민 1명을 만렙까지 강화", icon: "⭐",
+      // ※ 버그 수정: 원래는 level >= villagerMaxLevelBase(고정값 30)로 체크했는데, 실제로는
+      // 주민마다 만렙이 다 다르다(토끼 30 ~ 유니콘 15, villagerMaxLevelByIndex 참고) — 그래서
+      // 토끼를 제외한 14명은 만렙을 찍어도 이 업적을 절대 딸 수 없는 상태였다. "주민 1명을
+      // 만렙까지 강화"라는 설명 그대로, 각 주민의 실제 만렙(getVillagerMaxLevel)에 도달했는지로
+      // 체크하도록 고쳤다.
+      check: (s) => CONFIG.villagers.some((v) => (s.villagers[v.id]?.level ?? 1) >= getVillagerMaxLevel(v.id)) },
+    { id: "sea_complete", name: "바다 탐험가", desc: "물고기 테마 주민 3명 모두 고용", icon: "🐟",
+      check: (s) => isThemeFullyHired("sea") },
+    { id: "speed_x2", name: "가속 개시", desc: "배속 ×2를 해금했어요", icon: "⚡",
+      check: (s) => getUnlockedSpeeds().includes(2) },
+    { id: "mine_complete", name: "광부의 자부심", desc: "광산 테마 주민 3명 모두 고용", icon: "⛏️",
+      check: (s) => isThemeFullyHired("mine") },
+    { id: "speed_x3", name: "초가속", desc: "배속 ×3을 해금했어요", icon: "🚀",
+      check: (s) => getUnlockedSpeeds().includes(3) },
+    { id: "all_hired", name: "마을 완성", desc: "15명 주민을 모두 고용했어요", icon: "🏆",
+      check: (s) => CONFIG.villagers.every((v) => s.villagers[v.id]?.hired) },
+    { id: "goal_complete", name: "빚 청산", desc: "목표 금액을 모두 모았어요", icon: "👑",
+      check: (s) => s.money >= s.goalMoney },
+  ],
+
+  villagers: [
+    // 🌳 나무 테마
+    { id: "forest_01", name: "토끼",   emoji: "🐰",  theme: "forest",
+      characterImage: "assets/villagers/forest_01.png", backgroundImage: "assets/background/forest_01.png",
+      hireCost: 500,      baseIncome: 1,      incomeGrowth: 1.13, baseUpgradeCost: 1000,      upgradeCostGrowth: 1.15, baseInterval: 8 },
+    { id: "forest_02", name: "다람쥐", emoji: "🐿️", theme: "forest",
+      characterImage: "assets/villagers/forest_02.png", backgroundImage: "assets/background/forest_02.png",
+      hireCost: 1100,     baseIncome: 2,      incomeGrowth: 1.13, baseUpgradeCost: 2200,      upgradeCostGrowth: 1.15, baseInterval: 7 },
+    { id: "forest_03", name: "사슴",   emoji: "🦌",  theme: "forest",
+      characterImage: "assets/villagers/forest_03.png", backgroundImage: "assets/background/forest_03.png",
+      hireCost: 2420,     baseIncome: 6,      incomeGrowth: 1.13, baseUpgradeCost: 4840,      upgradeCostGrowth: 1.15, baseInterval: 6 },
+
+    // 🥕 당근 테마
+    { id: "farm_01", name: "병아리", emoji: "🐤", theme: "farm",
+      characterImage: "assets/villagers/farm_01.png", backgroundImage: "assets/background/farm_01.png",
+      hireCost: 5320,     baseIncome: 16,     incomeGrowth: 1.13, baseUpgradeCost: 10640,     upgradeCostGrowth: 1.15, baseInterval: 6 },
+    { id: "farm_02", name: "돼지",   emoji: "🐷", theme: "farm",
+      characterImage: "assets/villagers/farm_02.png", backgroundImage: "assets/background/farm_02.png",
+      hireCost: 11700,    baseIncome: 39,     incomeGrowth: 1.13, baseUpgradeCost: 23400,     upgradeCostGrowth: 1.15, baseInterval: 5 },
+    { id: "farm_03", name: "양",     emoji: "🐑", theme: "farm",
+      characterImage: "assets/villagers/farm_03.png", backgroundImage: "assets/background/farm_03.png",
+      hireCost: 25800,    baseIncome: 98,     incomeGrowth: 1.13, baseUpgradeCost: 51600,     upgradeCostGrowth: 1.15, baseInterval: 5 },
+
+    // 🐟 물고기 테마
+    { id: "sea_01", name: "물고기", emoji: "🐟", theme: "sea",
+      characterImage: "assets/villagers/sea_01.png", backgroundImage: "assets/background/sea_01.png",
+      hireCost: 56700,    baseIncome: 244,    incomeGrowth: 1.13, baseUpgradeCost: 113400,    upgradeCostGrowth: 1.15, baseInterval: 4 },
+    { id: "sea_02", name: "문어",   emoji: "🐙", theme: "sea",
+      characterImage: "assets/villagers/sea_02.png", backgroundImage: "assets/background/sea_02.png",
+      hireCost: 124700,   baseIncome: 610,    incomeGrowth: 1.13, baseUpgradeCost: 249400,    upgradeCostGrowth: 1.15, baseInterval: 4 },
+    { id: "sea_03", name: "거북이", emoji: "🐢", theme: "sea",
+      characterImage: "assets/villagers/sea_03.png", backgroundImage: "assets/background/sea_03.png",
+      hireCost: 274400,   baseIncome: 1526,   incomeGrowth: 1.13, baseUpgradeCost: 548800,    upgradeCostGrowth: 1.15, baseInterval: 3 },
+
+    // ⛏️ 광산 테마
+    { id: "mine_01", name: "두더지", emoji: "🦫", theme: "mine",
+      characterImage: "assets/villagers/mine_01.png", backgroundImage: "assets/background/mine_01.png",
+      hireCost: 603600,   baseIncome: 3815,   incomeGrowth: 1.13, baseUpgradeCost: 1207200,   upgradeCostGrowth: 1.15, baseInterval: 3 },
+    { id: "mine_02", name: "곰",     emoji: "🐻", theme: "mine",
+      characterImage: "assets/villagers/mine_02.png", backgroundImage: "assets/background/mine_02.png",
+      hireCost: 1328000,  baseIncome: 9537,   incomeGrowth: 1.13, baseUpgradeCost: 2656000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
+    { id: "mine_03", name: "고블린", emoji: "👺", theme: "mine",
+      characterImage: "assets/villagers/mine_03.png", backgroundImage: "assets/background/mine_03.png",
+      hireCost: 2922000,  baseIncome: 23842,  incomeGrowth: 1.13, baseUpgradeCost: 5844000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
+
+    // ⭐ 별 테마
+    { id: "star_01", name: "올빼미",  emoji: "🦉", theme: "star",
+      characterImage: "assets/villagers/star_01.png", backgroundImage: "assets/background/star_01.png",
+      hireCost: 6428000,  baseIncome: 59605,  incomeGrowth: 1.13, baseUpgradeCost: 12856000,  upgradeCostGrowth: 1.15, baseInterval: 2 },
+    { id: "star_02", name: "여우",    emoji: "🦊", theme: "star",
+      characterImage: "assets/villagers/star_02.png", backgroundImage: "assets/background/star_02.png",
+      hireCost: 14141000, baseIncome: 149012, incomeGrowth: 1.13, baseUpgradeCost: 28282000,  upgradeCostGrowth: 1.15, baseInterval: 1 },
+    { id: "star_03", name: "유니콘",  emoji: "🦄", theme: "star",
+      characterImage: "assets/villagers/star_03.png", backgroundImage: "assets/background/star_03.png",
+      hireCost: 31109000, baseIncome: 372529, incomeGrowth: 1.13, baseUpgradeCost: 62218000,  upgradeCostGrowth: 1.15, baseInterval: 1 },
+  ],
+};
+
+/* ---------------------------------------------------------
+   2. 게임 상태 (저장/불러오기 대상이 될 데이터)
+   --------------------------------------------------------- */
+const state = {
+  money: 0,
+  clickLevel: 1,
+  isDebtorMode: false, // true면 메인 캐릭터가 "정상우의 빚" 모습, 목표 라벨도 전환됨
+  isSpinning: false,
+  currentTheme: "forest", // 주민 확인 화면에 처음 진입 시 자동 선택되는 테마
+  speedLevel: 1, // 현재 선택된 배속 (1/2/3)
+  hasSeenVictory: false, // 목표 금액 달성 축하 모달을 한 번 봤는지 (계속하기 후 매번 다시 뜨지 않도록)
+
+  // 업적 판정에 쓰이는 값들
+  achievements: {}, // achievementId → true (달성된 것만 기록)
+  gambleSpinCount: 0, // 도박 총 스핀 횟수
+  bestGambleMultiplier: 0, // 도박에서 뽑은 배수 중 최댓값
+  debtorEncountered: false, // 정상우 모드에 한 번이라도 진입한 적 있는지 (관리자 모드로 진입해도 인정)
+
+  // "맞다이 신청" 관련 상태. goalMoney는 CONFIG의 고정값이 아니라 여기서 관리하는 가변값이다
+  // (실패해서 빚이 2배가 되면 이 값 자체가 늘어난다). fightChallengeFailCount만큼 다음 참가비도 커진다.
+  goalMoney: CONFIG.goalMoney,
+  fightChallengeFailCount: 0, // 맞다이 신청 실패 횟수 (참가비 계산에 쓰임)
+
+  // 주민별 진행 상태. villagerId → { hired, level }
+  // CONFIG.villagers를 기준으로 자동 생성 → 주민을 추가/삭제해도 여기를 따로 손볼 필요 없다.
+  villagers: Object.fromEntries(
+    CONFIG.villagers.map((v) => [v.id, { hired: false, level: 1 }])
+  ),
+};
+
+// 주민별 "다음 지급까지 남은 초"를 추적하는 런타임 전용 타이머. 저장/불러오기 대상이 아니다
+// (게임을 다시 켰을 때 0부터 다시 세도 방치형 게임에서는 자연스럽고, 저장 파일 구조도 단순하게 유지된다).
+const villagerIncomeTimers = Object.fromEntries(CONFIG.villagers.map((v) => [v.id, 0]));
+
+/* ---------------------------------------------------------
+   3. 계산 유틸
+   --------------------------------------------------------- */
+
+// 클릭 레벨 → 클릭당 수익
+// ceil만으로는 저레벨 구간(성장률이 낮을 때)에서 값이 여러 레벨째 정체될 수 있어,
+// "레벨 하한선(최소 level원)"을 같이 둬서 모든 레벨에서 항상 최소 1씩은 늘어나도록 보장한다.
+function getClickIncome(level) {
+  const { baseIncome, incomeGrowth } = CONFIG.click;
+  return Math.max(Math.ceil(baseIncome * Math.pow(incomeGrowth, level - 1)), level);
+}
+
+// 클릭 레벨 → 다음 레벨 업그레이드 비용
+// getClickIncome과 동일한 이유로 "레벨당 최소 costMinPerLevel원씩 증가" 하한선을 둔다.
+// (수익에만 하한선이 있고 비용엔 없으면, 하한선이 걸리는 저레벨 구간에서 비용이 수익 대비
+// 지나치게 싸지는 문제가 생긴다 — 두 하한선을 항상 짝지어 걸어줘야 비용/수익 비율이 일정하게 유지된다.)
+function getUpgradeCost(level) {
+  const { baseCost, costGrowth, costMinPerLevel } = CONFIG.click;
+  const raw = Math.round(baseCost * Math.pow(costGrowth, level - 1));
+  const floor = baseCost + (level - 1) * costMinPerLevel;
+  return Math.max(raw, floor);
+}
+
+// 클릭 레벨 → 현재 Stage (1~5)
+function getStage(level) {
+  let stage = 1;
+  CONFIG.stageThresholds.forEach((threshold, i) => {
+    if (level >= threshold) stage = i + 1;
+  });
+  return stage;
+}
+
+// 주민 강화 최대 레벨. 주민마다 기본 상한이 다르고(villagerMaxLevelByIndex), 맞다이 신청에
+// 실패해서 빚이 불어날수록(state.fightChallengeFailCount만큼) 모든 주민에게 동일하게 보너스가 더해진다.
+function getVillagerMaxLevel(villagerId) {
+  const index = CONFIG.villagers.findIndex((v) => v.id === villagerId);
+  const base = index >= 0 ? CONFIG.villagerMaxLevelByIndex[index] : CONFIG.villagerMaxLevelBase;
+  return base + state.fightChallengeFailCount * CONFIG.villagerMaxLevelPerFail;
+}
+
+// 주민 레벨 → 1회 지급액(더 이상 "초당"이 아니다 — 몇 초에 한 번 지급되는지는 getVillagerInterval이 따로 계산한다)
+// 클릭 수익과 동일한 이유로 "레벨당 최소 1씩 증가" 하한선을 둔다.
+function getVillagerIncome(villagerData, level) {
+  const raw = Math.round(villagerData.baseIncome * Math.pow(villagerData.incomeGrowth, level - 1));
+  return Math.max(raw, villagerData.baseIncome + (level - 1));
+}
+
+// 주민이 baseIncome을 "몇 초에 한 번" 지급하는지 계산한다. 레벨이 오를수록 villagerIntervalDecay
+// 배율로 점점 짧아지고, villagerMinInterval(1초) 아래로는 더 줄어들지 않는다. 정수 초 단위로만
+// 표시/계산한다(반올림) — 화면에 "6.5초"처럼 어정쩡한 소수점이 보이지 않도록.
+function getVillagerInterval(villagerData, level) {
+  const raw = villagerData.baseInterval * Math.pow(CONFIG.villagerIntervalDecay, level - 1);
+  return Math.max(CONFIG.villagerMinInterval, Math.round(raw));
+}
+
+// 주민의 생산성을 화면에 표시할 문자열로 만든다. 주기가 1초면 기존과 같은 "X원/초"로,
+// 1초보다 길면 "N초당 X원"으로 표시한다 — "1초당 1원"처럼 어색한 표현 대신 자연스러운 쪽을 쓴다.
+function formatVillagerIncomeText(villagerData, level) {
+  const income = getVillagerIncome(villagerData, level);
+  const interval = getVillagerInterval(villagerData, level);
+  if (interval <= 1) return `${formatMoneyCompact(income)}/초`;
+  return `${interval}초당 ${formatMoneyCompact(income)}`;
+}
+
+// 금액을 보기 좋은 끝자리로 반올림한다 (10,000원 미만: 10원 단위 / 100만원 미만: 100원 단위
+// / 1억원 미만: 1,000원 단위 / 그 이상: 10,000원 단위). 강화비는 레벨마다 계산되는 값이라
+// 반올림 전 값이 애매한 끝자리를 갖기 쉬워, 표시/실제 값 모두 이 단위로 맞춘다.
+function roundToPrettyUnit(amount) {
+  if (amount < 10000) return Math.round(amount / 10) * 10;
+  if (amount < 1000000) return Math.round(amount / 100) * 100;
+  if (amount < 100000000) return Math.round(amount / 1000) * 1000;
+  return Math.round(amount / 10000) * 10000;
+}
+
+// 주민 레벨 → 다음 레벨 강화 비용
+function getVillagerUpgradeCost(villagerData, level) {
+  const raw = Math.round(villagerData.baseUpgradeCost * Math.pow(villagerData.upgradeCostGrowth, level - 1));
+  const withFloor = Math.max(raw, villagerData.baseUpgradeCost + (level - 1));
+  return roundToPrettyUnit(withFloor);
+}
+
+// 고용된 모든 주민의 "초당 실효 생산량" 합계. 주민마다 지급 주기(getVillagerInterval)가
+// 다르므로, 단순히 1회 지급액을 더하면 안 되고 지급액을 주기(초)로 나눈 값을 더해야 한다
+// (예: 8초에 1원이면 초당 실효 수익은 0.125원). 화면 표시용으로만 쓰이며, 실제 지급 자체는
+// startPassiveIncomeLoop의 개별 타이머가 정수 단위로 처리한다.
+function getTotalPassiveIncome() {
+  return CONFIG.villagers.reduce((sum, v) => {
+    const s = state.villagers[v.id];
+    if (!s || !s.hired) return sum;
+    return sum + getVillagerIncome(v, s.level) / getVillagerInterval(v, s.level);
+  }, 0);
+}
+
+// 특정 테마의 주민 3명이 전부 고용됐는지
+function isThemeFullyHired(themeId) {
+  return CONFIG.villagers
+    .filter((v) => v.theme === themeId)
+    .every((v) => state.villagers[v.id]?.hired);
+}
+
+// 테마가 해금됐는지: 첫 테마(나무)는 항상 열려 있고, 그 뒤 테마는
+// 바로 이전 테마 3명을 전부 고용해야 열린다(강화 레벨은 무관).
+function isThemeUnlocked(themeId) {
+  const idx = CONFIG.themes.findIndex((t) => t.id === themeId);
+  if (idx <= 0) return true;
+  const prevTheme = CONFIG.themes[idx - 1];
+  return isThemeFullyHired(prevTheme.id);
+}
+
+// 금액을 축약형(1.2만원, 1.2억원, 1.2조원, 1.2경원, 1.2해원)으로 표시한다. 화면에 보이는 모든
+// 금액 표시는 전부 이 함수 하나로 통일해서 쓴다("178억 2,579만원"처럼 두 단위를 같이 붙이는
+// 방식은 쓰지 않는다 — 만원 이상이면 "00만원"만, 억 이상이면 "00억원"만 소수점 첫째 자리까지).
+// 소수점 반올림으로 값이 10000을 넘어버리면(예: 9999.96억 → "10000.0억") 자동으로 한 단계
+// 위 단위(조)로 다시 계산해서 항상 자연스러운 자릿수로 보이게 한다.
+//
+// ※ 밸런스 6차 재조정 (버그: 예전에는 "경(10^16)"이 가장 큰 단위라, 그보다 커지면 뒤 숫자가
+//   "10,000경원", "1,000,000,000경원"처럼 끝없이 길어지는 문제가 있었다 — 클릭 레벨 상한(maxLevel)을
+//   도입해서 정상 플레이로는 이제 이 구간에 도달하지 않지만, 혹시 모를 예외 상황(저장 데이터 조작,
+//   맞다이 연속 실패로 목표금액이 과도하게 커지는 경우 등)에도 화면이 깨지지 않도록 "해(10^20)"
+//   단위를 추가하고, 그마저 넘는 값은 "해" 단위로나마 안전하게 표시되도록 안전장치를 마련했다.)
+function formatMoneyCompact(amount) {
+  amount = Math.floor(amount);
+  if (amount === 0) return "0원";
+  if (amount < 10000) return `${amount.toLocaleString()}원`;
+
+  const units = [
+    { divisor: 10 ** 20, label: "해" },
+    { divisor: 10 ** 16, label: "경" },
+    { divisor: 10 ** 12, label: "조" },
+    { divisor: 10 ** 8, label: "억" },
+    { divisor: 10 ** 4, label: "만" },
+  ];
+
+  for (let i = 0; i < units.length; i++) {
+    const { divisor, label } = units[i];
+    if (amount < divisor) continue;
+
+    let value = Math.round((amount / divisor) * 10) / 10;
+    if (value >= 10000) {
+      if (i > 0) {
+        // 반올림 때문에 상위 단위로 넘어가야 하는 경계 케이스 (예: 9999.96억 → 1조)
+        const upper = units[i - 1];
+        value = Math.round((amount / upper.divisor) * 10) / 10;
+        return `${formatOneDecimal(value)}${upper.label}원`;
+      }
+      // "해"(가장 큰 단위)조차 10000을 넘는 극단적인 값은 정상 플레이로는 절대 나올 수 없지만
+      // (클릭 레벨 상한 등으로 막혀 있음), 혹시 모를 예외 상황에서도 화면이 무한정 길어지지
+      // 않도록 지수 표기로 안전하게 폴백한다.
+      return `${amount.toExponential(1)}원`;
+    }
+    return `${formatOneDecimal(value)}${label}원`;
+  }
+  return `${amount.toLocaleString()}원`;
+}
+
+// 정수면 소수점 없이, 아니면 소수 첫째 자리까지만 보여주는 헬퍼
+function formatOneDecimal(value) {
+  return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1);
+}
+
+/* ---------------------------------------------------------
+   4. DOM 참조
+   --------------------------------------------------------- */
+const el = {
+  mainStage: document.getElementById("main-stage"),
+  mainStageBgImg: document.getElementById("main-stage-bg-img"),
+  mainCharacter: document.getElementById("main-character"),
+  charGroupNormal: document.getElementById("char-group-normal"), // 평소 캐릭터 그룹(이미지+이모지 폴백) 전체
+  charGroupDebtor: document.getElementById("char-group-debtor"), // 도박 캐릭터 그룹(이미지+SVG 폴백) 전체
+  charNormal: document.getElementById("char-svg-normal"), // 그룹 내부의 <img> (src만 갱신할 때 사용)
+  charImgDebtor: document.getElementById("char-img-debtor"), // 그룹 내부의 <img> (src만 갱신할 때 사용)
+  popupLayer: document.getElementById("popup-layer"),
+  contentArea: document.getElementById("content-area"),
+  currentMoney: document.getElementById("current-money"),
+  goalLabel: document.getElementById("goal-label"),
+  clickTabIcon: document.getElementById("click-tab-icon"),
+  clickTabLabel: document.getElementById("click-tab-label"),
+  upgradeCardIcon: document.getElementById("upgrade-card-icon"),
+  upgradeCardTitle: document.getElementById("upgrade-card-title"),
+  upgradeCardSub: document.getElementById("upgrade-card-sub"),
+  goalRemainingText: document.getElementById("goal-remaining-text"),
+  progressFill: document.getElementById("progress-fill"),
+  clickLevel: document.getElementById("click-level"),
+  clickIncome: document.getElementById("click-income"),
+  clickNextIncome: document.getElementById("click-next-income"),
+  upgradeBtn: document.getElementById("upgrade-btn"),
+  upgradeCost: document.getElementById("upgrade-cost"),
+
+  tabButtons: document.querySelectorAll(".tab-btn"),
+  tabPanels: document.querySelectorAll(".tab-panel"),
+
+  themeButtons: document.querySelectorAll(".theme-btn"),
+  themePanels: document.querySelectorAll(".theme-panel"),
+
+  hireThemeTabs: document.getElementById("hire-theme-tabs"),
+  hireThemeContent: document.getElementById("hire-theme-content"),
+
+  wheel: document.getElementById("wheel"),
+  wheelWrap: document.getElementById("wheel-wrap"),
+  spinBtn: document.getElementById("spin-btn"),
+  spinCost: document.getElementById("spin-cost"),
+  payoutTableBtn: document.getElementById("payout-table-btn"),
+  payoutModal: document.getElementById("payout-modal"),
+  payoutList: document.getElementById("payout-list"),
+  payoutCloseBtn: document.getElementById("payout-close-btn"),
+
+  speedOptions: document.getElementById("speed-options"),
+  speedHint: document.getElementById("speed-hint"),
+  saveSlots: document.getElementById("save-slots"),
+  resetBtn: document.getElementById("reset-btn"),
+  resetModal: document.getElementById("reset-modal"),
+  resetCancelBtn: document.getElementById("reset-cancel-btn"),
+  resetConfirmBtn: document.getElementById("reset-confirm-btn"),
+
+  victoryModal: document.getElementById("victory-modal"),
+  victoryDesc: document.getElementById("victory-desc"),
+  victoryContinueBtn: document.getElementById("victory-continue-btn"),
+  victoryResetBtn: document.getElementById("victory-reset-btn"),
+
+  achievementBtn: document.getElementById("achievement-btn"),
+  achievementModal: document.getElementById("achievement-modal"),
+  achievementCloseBtn: document.getElementById("achievement-close-btn"),
+  achievementList: document.getElementById("achievement-list"),
+  achievementProgressText: document.getElementById("achievement-progress-text"),
+  achievementToast: document.getElementById("achievement-toast"),
+  achievementToastIcon: document.getElementById("achievement-toast-icon"),
+  achievementToastName: document.getElementById("achievement-toast-name"),
+
+  fightChallengeBtn: document.getElementById("fight-challenge-btn"),
+  fightChallengeModal: document.getElementById("fight-challenge-modal"),
+  fightChallengeCost: document.getElementById("fight-challenge-cost"),
+  fightChallengeCancelBtn: document.getElementById("fight-challenge-cancel-btn"),
+  fightChallengeConfirmBtn: document.getElementById("fight-challenge-confirm-btn"),
+  fightResultModal: document.getElementById("fight-result-modal"),
+  fightResultModalBox: document.querySelector("#fight-result-modal .modal-box"),
+  fightResultEmoji: document.getElementById("fight-result-emoji"),
+  fightResultTitle: document.getElementById("fight-result-title"),
+  fightResultDesc: document.getElementById("fight-result-desc"),
+  fightResultCloseBtn: document.getElementById("fight-result-close-btn"),
+};
+
+/* ---------------------------------------------------------
+   5. 화면 갱신
+   --------------------------------------------------------- */
+function renderMoney() {
+  el.currentMoney.textContent = formatMoneyCompact(state.money);
+
+  const progress = Math.min(100, (state.money / state.goalMoney) * 100);
+  el.progressFill.style.width = `${progress}%`;
+
+  const remaining = Math.max(0, state.goalMoney - state.money);
+  if (el.goalRemainingText) {
+    el.goalRemainingText.textContent = remaining <= 0 ? "다 갚았어요!" : `${formatMoneyCompact(remaining)} 남음`;
+  }
+
+  // 목표 금액을 처음 달성한 순간에만 축하 모달을 띄운다.
+  if (state.money >= state.goalMoney && !state.hasSeenVictory) {
+    state.hasSeenVictory = true;
+    openVictoryModal();
+  }
+}
+
+function renderClickPanel() {
+  const isMaxLevel = state.clickLevel >= CONFIG.click.maxLevel;
+  const income = getClickIncome(state.clickLevel);
+  const nextIncome = isMaxLevel ? income : getClickIncome(state.clickLevel + 1);
+  const cost = isMaxLevel ? 0 : getUpgradeCost(state.clickLevel);
+
+  el.clickLevel.textContent = `Lv.${state.clickLevel}${isMaxLevel ? " (MAX)" : ""}`;
+  el.clickIncome.textContent = `+${formatMoneyCompact(income)} / 클릭`;
+  el.clickNextIncome.textContent = isMaxLevel ? "-" : `+${formatMoneyCompact(nextIncome)} / 클릭`;
+  el.upgradeCost.textContent = isMaxLevel ? "만렙 달성" : formatMoneyCompact(cost);
+
+  el.upgradeBtn.disabled = isMaxLevel || state.money < cost;
+}
+
+function renderStage() {
+  const stage = getStage(state.clickLevel);
+  el.mainStage.className = `stage-bg stage-${stage}`;
+  state.currentStage = stage; // 도박 결과(정상우 캐릭터)가 "지금 Stage"를 알 수 있도록 기록
+  applyStageAssets(stage, state.isDebtorMode);
+  renderFightChallengeButton();
+}
+
+// 정상우의 빚 모드 여부에 따라 캐릭터 모습 + 목표 라벨을 전환
+// "평소 캐릭터 그룹"(이미지 또는 실패 시 이모지 폴백)과 "도박 캐릭터 그룹"(이미지 또는 실패 시
+// 손그림 SVG 폴백)을 통째로 켜고 끈다. 그룹 안에서 이미지/폴백 중 뭐가 실제로 보이는지는 각
+// <img>의 onerror가 로드 성공 여부에 따라 독립적으로 관리하므로(index.html 참고) 여기서는
+// 건드리지 않는다 — 그룹을 껐다 다시 켜도 onerror가 만들어둔 이미지/폴백 상태가 그대로 유지된다.
+function renderDebtorMode() {
+  el.charGroupNormal.hidden = state.isDebtorMode;
+  el.charGroupDebtor.hidden = !state.isDebtorMode;
+  el.goalLabel.textContent = state.isDebtorMode ? "정상우의 빚" : "디디의 빚";
+  el.mainStage.classList.toggle("debtor-mode", state.isDebtorMode); // 배경을 갈색 계열로 전환하는 트리거
+  applyStageAssets(state.currentStage ?? getStage(state.clickLevel), state.isDebtorMode);
+  renderFightChallengeButton();
+
+  // 상단 탭 메뉴 "디디"/카드 제목 "디디 강화"도 정상우 모드에선 "정상우"/"정상우 강화"로,
+  // 아이콘도 🌱(디디) <-> 🐟(정상우)로 함께 전환한다.
+  const label = state.isDebtorMode ? "정상우" : "디디";
+  const icon = state.isDebtorMode ? "🐟" : "🌱";
+  if (el.clickTabIcon) el.clickTabIcon.textContent = icon;
+  if (el.clickTabLabel) el.clickTabLabel.textContent = label;
+  if (el.upgradeCardIcon) el.upgradeCardIcon.textContent = icon;
+  if (el.upgradeCardTitle) el.upgradeCardTitle.textContent = `${label} 강화`;
+  if (el.upgradeCardSub) el.upgradeCardSub.textContent = `${label}를 클릭할 때마다 얻는 돈을 늘려요`;
+  if (el.mainCharacter) el.mainCharacter.setAttribute("aria-label", `${label}를 클릭해서 돈 벌기`);
+}
+
+// 실제 이미지 에셋이 있으면 그걸 쓰고, 없으면(아직 준비 전이거나 로드 실패) 기존 단색 배경/SVG로
+// 자동 대체된다. 각 <img>의 onerror가 로드 실패를 감지해서 스스로 숨고 폴백을 보여주는 역할을
+// 전담하므로(index.html 참고), 여기서는 "어떤 stage의 어떤 src를 시도할지"만 새로 세팅해주면
+// 된다 — src가 바뀌면 브라우저가 다시 로드를 시도하고, 성공/실패 여부에 따라 onerror가 알아서
+// hidden을 정리한다. 정상우 모드일 때도 "그 시점의 Stage와 같은 단계"의 debtor 이미지를 쓰도록
+// stage를 그대로 넘겨받는다.
+function applyStageAssets(stage, isDebtor) {
+  const assets = CONFIG.stageAssets[stage - 1];
+  if (!assets) return;
+
+  // 평소 캐릭터: src가 실제로 바뀔 때만 다시 로드하도록 비교해서, 매 렌더링마다 불필요하게
+  // 네트워크 요청이 반복되거나 onerror가 다시 실행되는 것을 막는다.
+  if (assets.normal && el.charNormal.dataset.stageSrc !== assets.normal) {
+    el.charNormal.dataset.stageSrc = assets.normal;
+    el.charNormal.hidden = false; // 로드 재시도 — 실패하면 onerror가 다시 숨긴다
+    el.charNormal.src = assets.normal;
+  }
+
+  // 도박 캐릭터: 마찬가지로 src가 바뀔 때만 다시 로드.
+  if (assets.debtor && el.charImgDebtor.dataset.stageSrc !== assets.debtor) {
+    el.charImgDebtor.dataset.stageSrc = assets.debtor;
+    el.charImgDebtor.hidden = false; // 로드 재시도 — 실패하면 onerror가 다시 숨긴다
+    el.charImgDebtor.src = assets.debtor;
+  }
+
+  // 배경: src가 실제로 바뀔 때만 다시 로드. onerror가 로드 실패 시 hidden 처리해서
+  // #main-stage 자체의 그라디언트(.stage-bg.stage-N)가 자연스럽게 보이게 한다.
+  if (assets.background && el.mainStageBgImg.dataset.stageSrc !== assets.background) {
+    el.mainStageBgImg.dataset.stageSrc = assets.background;
+    el.mainStageBgImg.hidden = false;
+    el.mainStageBgImg.src = assets.background;
+  }
+}
+
+// 돈이 바뀔 때마다 항상 함께 갱신돼야 하는 화면들 (금액 표시 + 클릭 패널 + 주민 고용/강화 버튼 상태 + 배속 해금 여부)
+// 이걸 개별 호출로 흩어두면 한 곳에서 빠뜨리기 쉬워 하나로 묶어 둔다.
+function renderEconomy() {
+  renderMoney();
+  renderClickPanel();
+  renderVillagers();
+  renderSpeedOptions(); // 주민 고용/레벨이 배속 해금 조건이라 돈이 바뀔 때마다 같이 확인
+  checkAchievements(); // 상태가 바뀔 때마다 새로 달성된 업적이 있는지 확인
+}
+
+function renderAll() {
+  renderEconomy();
+  renderStage();
+  renderDebtorMode();
+  renderSaveSlots();
+}
+
+/* ---------------------------------------------------------
+   6. +금액 팝업 애니메이션
+   --------------------------------------------------------- */
+// containerEl 내부(자신의 좌표계)에 +금액 팝업을 띄운다.
+// containerEl은 CSS에서 position: relative/absolute로 기준점 역할을 해야 한다.
+function spawnMoneyPopup(amount, containerEl) {
+  const popup = document.createElement("div");
+  popup.className = "money-popup";
+  popup.textContent = `+${formatMoneyCompact(amount).replace("원", "")}`;
+
+  const offsetX = (Math.random() - 0.5) * 60;
+  popup.style.left = `calc(50% + ${offsetX}px)`;
+  popup.style.top = "25%";
+
+  containerEl.appendChild(popup);
+  popup.addEventListener("animationend", () => popup.remove());
+}
+
+/* ---------------------------------------------------------
+   7. 이벤트 처리
+   --------------------------------------------------------- */
+function handleClick() {
+  const income = getClickIncome(state.clickLevel);
+  state.money += income;
+
+  spawnMoneyPopup(income, el.popupLayer);
+
+  // 캐릭터 바운스 모션
+  el.mainCharacter.classList.remove("bounce");
+  void el.mainCharacter.offsetWidth; // 리플로우로 애니메이션 재시작
+  el.mainCharacter.classList.add("bounce");
+
+  renderEconomy(); // 돈이 늘어날 때마다 고용/강화 버튼 활성화 여부도 함께 갱신
+}
+
+function handleUpgrade() {
+  if (state.clickLevel >= CONFIG.click.maxLevel) return; // 만렙이면 더 이상 강화 불가
+
+  const cost = getUpgradeCost(state.clickLevel);
+
+  if (state.money < cost) {
+    el.upgradeBtn.classList.remove("shake");
+    void el.upgradeBtn.offsetWidth;
+    el.upgradeBtn.classList.add("shake");
+    return;
+  }
+
+  state.money -= cost;
+  state.clickLevel += 1;
+
+  renderAll();
+}
+
+/* ---------------------------------------------------------
+   8. 상단 3+1 탭 전환
+   --------------------------------------------------------- */
+function switchTab(tabName) {
+  el.tabButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tabName);
+  });
+  el.tabPanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `tab-${tabName}`);
+  });
+
+  trackAdminSequence(tabName);
+}
+
+/* ---------------------------------------------------------
+   8-0. 관리자 전용 히든 커맨드 (정상우 모드 테스트용 스위칭)
+   설정 탭 5번 → 주민 탭 3번 → 고용 탭 2번, 총 10번을 이 순서대로 연속으로 눌러야 발동한다.
+   중간에 다른 탭이 끼거나 순서/횟수가 어긋나면 그 시점부터 다시 처음부터 세기 시작한다.
+   --------------------------------------------------------- */
+const ADMIN_SEQUENCE = ["settings", "settings", "settings", "settings", "settings", "villagers", "villagers", "villagers", "hire", "hire"];
+let adminSequenceProgress = [];
+
+function trackAdminSequence(tabName) {
+  adminSequenceProgress.push(tabName);
+  // 최근 입력이 시퀀스와 계속 맞아떨어지는지 뒤에서부터 검사 — 안 맞으면 그 지점부터 새로 시작
+  if (adminSequenceProgress.length > ADMIN_SEQUENCE.length) {
+    adminSequenceProgress = adminSequenceProgress.slice(-ADMIN_SEQUENCE.length);
+  }
+  const matches = adminSequenceProgress.length === ADMIN_SEQUENCE.length &&
+    adminSequenceProgress.every((t, i) => t === ADMIN_SEQUENCE[i]);
+
+  if (matches) {
+    adminSequenceProgress = [];
+    toggleAdminDebtorMode();
+    return;
+  }
+
+  // 지금까지 입력이 시퀀스의 접두사(prefix)와 안 맞으면, 마지막 탭 하나만 남기고 리셋
+  // (예: 설정 5번을 눌렀는데 그 다음 "고용"을 눌러버리면, 처음부터 다시 세되 방금 누른 "고용"부터 카운트)
+  const isValidPrefix = adminSequenceProgress.every((t, i) => t === ADMIN_SEQUENCE[i]);
+  if (!isValidPrefix) {
+    adminSequenceProgress = [tabName];
+  }
+}
+
+// 관리자 모드로 정상우/디디 상태를 강제로 전환한다. 실제 도박에서 최저확률(???)에 당첨된 것과
+// 동일하게 처리해서, 이후 다음 스핀에서 정상적으로 원래 상태로 복귀하는지도 테스트할 수 있게 한다.
+function toggleAdminDebtorMode() {
+  state.isDebtorMode = !state.isDebtorMode;
+  if (state.isDebtorMode) state.debtorEncountered = true; // 업적도 함께 인정
+  renderDebtorMode();
+
+  // 어느 탭에 있든 항상 보이는 메인 캐릭터 영역(#popup-layer)에 안내를 띄운다.
+  spawnAdminNotice(state.isDebtorMode ? "🛠️ 관리자: 정상우 모드 ON" : "🛠️ 관리자: 정상우 모드 OFF");
+}
+
+// 관리자 전용 안내를 메인 캐릭터 영역 위에 잠깐 띄운다.
+function spawnAdminNotice(message) {
+  if (!el.popupLayer) return;
+  const notice = document.createElement("div");
+  notice.className = "admin-notice";
+  notice.textContent = message;
+  el.popupLayer.appendChild(notice);
+  notice.addEventListener("animationend", () => notice.remove());
+}
+
+/* ---------------------------------------------------------
+   8-1. 주민 확인 화면의 5개 테마 서브탭
+   --------------------------------------------------------- */
+function switchTheme(themeId) {
+  state.currentTheme = themeId;
+
+  el.themeButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.theme === themeId);
+  });
+  el.themePanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `theme-${themeId}`);
+  });
+}
+
+/* ---------------------------------------------------------
+   8-1-2. 주민 고용 화면의 5개 테마 서브탭 (한 테마를 모두 고용해야 다음이 열림)
+   --------------------------------------------------------- */
+let currentHireTheme = "forest";
+
+function switchHireTheme(themeId) {
+  if (!isThemeUnlocked(themeId)) return; // 잠긴 테마는 선택 자체가 안 됨
+  currentHireTheme = themeId;
+  renderHireThemeTabs();
+  renderHireThemeContent();
+}
+
+function renderHireThemeTabs() {
+  if (!el.hireThemeTabs) return;
+  el.hireThemeTabs.innerHTML = CONFIG.themes
+    .map((t) => {
+      const unlocked = isThemeUnlocked(t.id);
+      const active = t.id === currentHireTheme;
+      return `<button class="theme-btn${active ? " active" : ""}${unlocked ? "" : " locked"}"
+        data-hire-theme="${t.id}" ${unlocked ? "" : "disabled"}>${t.icon}${unlocked ? "" : '<span class="theme-lock-badge">🔒</span>'}</button>`;
+    })
+    .join("");
+
+  el.hireThemeTabs.querySelectorAll("[data-hire-theme]").forEach((btn) => {
+    btn.addEventListener("click", () => switchHireTheme(btn.dataset.hireTheme));
+  });
+}
+
+/* ---------------------------------------------------------
+   8-2. 주민 시스템 (고용 / 강화 / 자동 생산)
+   --------------------------------------------------------- */
+
+// "주민 확인" 화면 슬롯(이미지+잠금 표시만)의 DOM을 최초 1회 생성한다.
+// 실제 고용/강화 조작은 "주민 고용" 화면(테마별로 매번 다시 그림)에서만 한다.
+// (이미 생성된 슬롯이 있으면 건너뛰어 중복 생성을 막는다 — 재호출해도 안전하다.)
+function buildVillagerDom() {
+  CONFIG.villagers.forEach((v) => {
+    if (document.getElementById(`slot-${v.id}`)) return; // 이미 만들어져 있으면 스킵
+    const themePanel = document.getElementById(`theme-${v.theme}`);
+    const slot = document.createElement("div");
+    slot.className = "villager-slot";
+    slot.id = `slot-${v.id}`;
+    const motionClass = CONFIG.villagerMotions[v.id] || "";
+    // 배경/캐릭터 이미지는 있으면 <img>가 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
+    // 기존 단색 그라디언트 배경(.villager-visual)과 이모지(.villager-emoji)가 그대로 보인다.
+    const bgImgTag = v.backgroundImage
+      ? `<img class="villager-bg-img" src="${v.backgroundImage}" alt="" onerror="this.hidden=true;" />`
+      : "";
+    const charImgTag = v.characterImage
+      ? `<img class="villager-character-img ${motionClass}" src="${v.characterImage}" alt="${v.name}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
+      : "";
+    slot.innerHTML = `
+      <div class="villager-visual">
+        ${bgImgTag}
+        <div class="bg-decor" id="bg-decor-${v.id}"></div>
+        ${charImgTag}
+        <span class="villager-emoji ${motionClass}" ${charImgTag ? "hidden" : ""}>${v.emoji}</span>
+        <div class="villager-speech-bubble" id="bubble-${v.id}" hidden></div>
+        <div class="villager-name-badge">${v.emoji} ${v.name}</div>
+        <div class="villager-lock-overlay" id="lock-${v.id}">
+          <span class="lock-icon">🔒</span>
+          <span class="lock-text">아직 고용되지 않음</span>
+        </div>
+      </div>
+    `;
+    if (themePanel) themePanel.appendChild(slot);
+  });
+}
+
+// 특정 주민의 캐릭터 위에 말풍선을 잠깐 띄운다. (예: 강화했을 때 "고마워요!" 같은 반응)
+// durationMs 이후 자동으로 사라진다. content는 텍스트 또는 이모지 문자열.
+function showVillagerSpeechBubble(villagerId, content, durationMs = 2000) {
+  const bubble = document.getElementById(`bubble-${villagerId}`);
+  if (!bubble) return;
+  bubble.textContent = content;
+  bubble.hidden = false;
+  window.clearTimeout(bubble._hideTimer);
+  bubble._hideTimer = window.setTimeout(() => {
+    bubble.hidden = true;
+  }, durationMs);
+}
+
+// 특정 주민의 배경 장식 레이어에 소품(나비, 반짝임 등)을 채운다.
+// items는 [{ emoji, className, style }] 형태 — className으로 CSS 애니메이션(위치·움직임)을 지정하고,
+// style로 각 소품의 시작 위치(top/left 등)를 개별 지정할 수 있다.
+function setVillagerBackgroundDecor(villagerId, items) {
+  const container = document.getElementById(`bg-decor-${villagerId}`);
+  if (!container) return;
+  container.innerHTML = items
+    .map((item) => `<span class="bg-decor-item ${item.className || ""}" style="${item.style || ""}">${item.emoji || ""}</span>`)
+    .join("");
+}
+
+// 메인 캐릭터 영역 배경에도 같은 방식으로 소품(구름, 반딧불이 등)을 채울 수 있다.
+// #village-deco가 그 컨테이너 — Stage가 바뀌어도(초록→노랑→...) 그대로 유지된다.
+function setMainBackgroundDecor(items) {
+  const container = document.getElementById("village-deco");
+  if (!container) return;
+  container.innerHTML = items
+    .map((item) => `<span class="bg-decor-item ${item.className || ""}" style="${item.style || ""}">${item.emoji || ""}</span>`)
+    .join("");
+}
+
+// "주민 고용" 화면: 현재 선택된 테마의 주민 3명 카드를 새로 그린다.
+// 고용 전에는 고용 정보(비용/자동수익)만, 고용 후에는 레벨/강화 정보로 바뀐다.
+// (스펙: 고용 탭은 배경 이미지 없이 단색 배경 + 캐릭터만 — 배경은 여기서 다루지 않는다.)
+function hireVisualCharacterHtml(v) {
+  // 이미지가 있으면 <img>가 우선 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
+  // 옆의 이모지(.hire-emoji)가 그대로 보인다.
+  if (!v.characterImage) return `<span class="hire-emoji">${v.emoji}</span>`;
+  return `
+    <img class="hire-character-img" src="${v.characterImage}" alt="${v.name}"
+         onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+    <span class="hire-emoji" hidden>${v.emoji}</span>
+  `;
+}
+
+function renderHireThemeContent() {
+  if (!el.hireThemeContent) return;
+  const unlocked = isThemeUnlocked(currentHireTheme);
+
+  if (!unlocked) {
+    const idx = CONFIG.themes.findIndex((t) => t.id === currentHireTheme);
+    const prevTheme = CONFIG.themes[idx - 1];
+    el.hireThemeContent.innerHTML = `
+      <div class="theme-locked-card">
+        <span class="theme-locked-icon">🔒</span>
+        <p class="theme-locked-title">아직 열리지 않은 지역이에요</p>
+        <p class="theme-locked-desc">${prevTheme.icon} ${prevTheme.name} 주민 3명을 모두 고용하면 열려요.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const villagersInTheme = CONFIG.villagers.filter((v) => v.theme === currentHireTheme);
+
+  el.hireThemeContent.innerHTML = villagersInTheme
+    .map((v) => {
+      const s = state.villagers[v.id];
+      const isMaxLevel = s.level >= getVillagerMaxLevel(v.id);
+
+      if (!s.hired) {
+        // 고용 전: 이름/캐릭터 + 고용 비용 + 자동수익 + 고용 버튼만
+        return `
+          <div class="hire-card" id="hire-${v.id}">
+            <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
+            <div class="hire-info">
+              <h2 class="hire-name">${v.name}</h2>
+              <div class="hire-stat-row"><span>고용 비용</span><strong>${formatMoneyCompact(v.hireCost)}</strong></div>
+              <div class="hire-stat-row"><span>자동 수익</span><strong>${formatVillagerIncomeText(v, 1)}</strong></div>
+            </div>
+            <button class="hire-btn" data-villager="${v.id}" ${state.money < v.hireCost ? "disabled" : ""}>고용하기</button>
+          </div>
+        `;
+      }
+
+      // 고용 후: 레벨 / 현재수익 / 다음레벨 / 강화 버튼으로 전환
+      const incomeText = formatVillagerIncomeText(v, s.level);
+      const nextIncomeText = isMaxLevel ? "-" : formatVillagerIncomeText(v, s.level + 1);
+      const upgradeCost = isMaxLevel ? 0 : getVillagerUpgradeCost(v, s.level);
+      const upgradeDisabled = isMaxLevel || state.money < upgradeCost;
+
+      return `
+        <div class="hire-card hire-card-hired" id="hire-${v.id}">
+          <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
+          <div class="hire-info">
+            <h2 class="hire-name">${v.name}</h2>
+            <div class="upgrade-stats">
+              <div class="stat-box">
+                <span class="stat-label">레벨</span>
+                <span class="stat-value">Lv.${s.level}${isMaxLevel ? " (MAX)" : ""}</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">현재 수익</span>
+                <span class="stat-value">${incomeText}</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">다음 레벨</span>
+                <span class="stat-value">${nextIncomeText}</span>
+              </div>
+            </div>
+          </div>
+          <button class="upgrade-btn villager-upgrade-btn" data-villager="${v.id}" ${upgradeDisabled ? "disabled" : ""}>
+            <span class="upgrade-btn-label">강화</span>
+            <span class="upgrade-btn-cost">${isMaxLevel ? "만렙 달성" : formatMoneyCompact(upgradeCost)}</span>
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+
+  // 카드가 매번 새로 그려지므로 이벤트도 그때마다 다시 연결
+  el.hireThemeContent.querySelectorAll("[data-villager]").forEach((btn) => {
+    const villagerId = btn.dataset.villager;
+    if (btn.classList.contains("hire-btn")) {
+      btn.addEventListener("click", () => handleHire(villagerId));
+    } else if (btn.classList.contains("villager-upgrade-btn")) {
+      btn.addEventListener("click", () => handleVillagerUpgrade(villagerId));
+    }
+  });
+}
+
+// 주민 확인 화면(슬롯 잠금 상태)과 주민 고용 화면(테마탭 잠금/카드)을 함께 갱신
+function renderVillagers() {
+  CONFIG.villagers.forEach((v) => {
+    const s = state.villagers[v.id];
+    const slot = document.getElementById(`slot-${v.id}`);
+    if (slot) slot.classList.toggle("unlocked", s.hired);
+  });
+
+  renderHireThemeTabs();
+  renderHireThemeContent();
+}
+
+function handleHire(villagerId) {
+  const v = CONFIG.villagers.find((v) => v.id === villagerId);
+  const s = state.villagers[villagerId];
+  if (!v || !s || s.hired) return;
+
+  // 카드가 매번 새로 그려지므로, 고정 id 대신 방금 클릭된 버튼(현재 DOM에 실제로 존재하는 요소)을 찾는다.
+  const hireBtn = el.hireThemeContent.querySelector(`.hire-btn[data-villager="${villagerId}"]`);
+
+  if (state.money < v.hireCost) {
+    if (hireBtn) {
+      hireBtn.classList.remove("shake");
+      void hireBtn.offsetWidth;
+      hireBtn.classList.add("shake");
+    }
+    return;
+  }
+
+  state.money -= v.hireCost;
+  s.hired = true;
+
+  renderEconomy();
+}
+
+function handleVillagerUpgrade(villagerId) {
+  const v = CONFIG.villagers.find((v) => v.id === villagerId);
+  const s = state.villagers[villagerId];
+  if (!v || !s || !s.hired) return;
+  if (s.level >= getVillagerMaxLevel(villagerId)) return; // 만렙이면 더 이상 강화 불가
+
+  const cost = getVillagerUpgradeCost(v, s.level);
+  const upgradeBtn = el.hireThemeContent.querySelector(`.villager-upgrade-btn[data-villager="${villagerId}"]`);
+
+  if (state.money < cost) {
+    if (upgradeBtn) {
+      upgradeBtn.classList.remove("shake");
+      void upgradeBtn.offsetWidth;
+      upgradeBtn.classList.add("shake");
+    }
+    return;
+  }
+
+  state.money -= cost;
+  s.level += 1;
+
+  renderEconomy();
+}
+
+// 1초마다 모든 고용 주민의 생산 타이머를 진행시키고, 각자의 주기(getVillagerInterval)가
+// 다 찬 주민만 그 시점에 baseIncome을 지급한다 — 더 이상 "모든 주민이 매초 얻는" 방식이
+// 아니라, 주민마다 "몇 초에 한 번" 지급되는지가 다르다(밸런스 7차 재조정 참고).
+// 배속(state.speedLevel)은 "타이머가 매초 그만큼 더 빨리 흐르는 것"으로 반영한다 — 배속 3배면
+// 실제 1초마다 타이머가 3초치 진행되어, 주기가 사실상 1/3로 단축되는 효과를 낸다.
+// +금액 팝업은 "지금 실제로 주민 확인 화면을 보고 있을 때"만 띄운다 — 다른 탭에 있다가
+// 돌아왔을 때 그동안 밀린 팝업이 한꺼번에 쏟아지지 않도록, 안 보는 동안은 애니메이션 없이
+// 총 금액에만 조용히 더해지고 돌아오면 그 시점부터 다시 팝업이 보인다.
+function startPassiveIncomeLoop() {
+  window.setInterval(() => {
+    let totalIncome = 0;
+    const speed = state.speedLevel;
+    const isViewingVillagers = document.getElementById("tab-villagers")?.classList.contains("active");
+
+    CONFIG.villagers.forEach((v) => {
+      const s = state.villagers[v.id];
+      if (!s || !s.hired) return;
+
+      const interval = getVillagerInterval(v, s.level);
+      villagerIncomeTimers[v.id] += speed;
+
+      // 배속이 커서 한 틱에 주기를 여러 번 채울 수도 있으므로 while로 처리한다
+      // (예: 주기 1초에 배속 3배면 한 틱에 3번 지급).
+      let villagerIncome = 0;
+      while (villagerIncomeTimers[v.id] >= interval) {
+        villagerIncomeTimers[v.id] -= interval;
+        villagerIncome += getVillagerIncome(v, s.level);
+      }
+      if (villagerIncome === 0) return;
+
+      totalIncome += villagerIncome;
+
+      if (isViewingVillagers) {
+        const visual = document.getElementById(`slot-${v.id}`);
+        if (visual) spawnMoneyPopup(villagerIncome, visual);
+      }
+    });
+
+    if (totalIncome > 0) {
+      state.money += totalIncome;
+      renderEconomy();
+    }
+  }, 1000);
+}
+
+/* ---------------------------------------------------------
+   9. 도박(돌림판)
+   --------------------------------------------------------- */
+const gambleSegments = CONFIG.gamble.segments;
+const totalWeight = gambleSegments.reduce((sum, seg) => sum + seg.weight, 0);
+
+// 돌림판 배경(conic-gradient)과 각 구간의 라벨을 미리 계산해둔다.
+const wheelLayout = (() => {
+  // 조각이 서로 잘 구분되도록 8가지 색을 순환시키고, 정상우의 빚(최저확률)만 어두운 회색으로 고정
+  const colors = ["#F6C6CE", "#B9DE9E", "#A3D0EA", "#F3C98C", "#C7ACE6", "#F3AEB9", "#EFD9A8", "#9FC9E6"];
+  let acc = 0;
+  return gambleSegments.map((seg, i) => {
+    const startDeg = (acc / totalWeight) * 360;
+    acc += seg.weight;
+    const endDeg = (acc / totalWeight) * 360;
+    return {
+      ...seg,
+      startDeg,
+      endDeg,
+      midDeg: (startDeg + endDeg) / 2,
+      color: seg.isJackpotBad ? "#8A7A68" : colors[i % colors.length],
+    };
+  });
+})();
+
+function buildWheelBackground() {
+  const stops = wheelLayout
+    .map((seg) => `${seg.color} ${seg.startDeg}deg ${seg.endDeg}deg`)
+    .join(", ");
+  el.wheel.style.background = `conic-gradient(${stops})`;
+}
+
+// 룰렛은 색상 조각만 표시하고, 각 색상이 어떤 배수인지는 옆의 "확률표" 버튼을 눌렀을 때
+// 뜨는 모달에서 색상 원 + 배수 + 확률로 보여준다 (조각이 좁아 글자를 넣기 어려워 바꾼 방식).
+function renderPayoutTable() {
+  if (!el.payoutList) return;
+  el.payoutList.innerHTML = wheelLayout
+    .map((seg) => {
+      const chanceValue = (seg.weight / totalWeight) * 100;
+      // 정수 %는 그대로, 소수점이 있는 값(예: 0.5%)은 소수 첫째 자리까지 보여준다.
+      const chance = Number.isInteger(chanceValue) ? chanceValue : chanceValue.toFixed(1);
+      return `
+        <div class="payout-row${seg.isJackpotBad ? " jackpot-bad" : ""}">
+          <span class="payout-swatch" style="background:${seg.color}"></span>
+          <span class="payout-label">${seg.label}</span>
+          <span class="payout-chance">${chance}%</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function openPayoutModal() {
+  renderPayoutTable();
+  el.payoutModal.hidden = false;
+}
+function closePayoutModal() {
+  el.payoutModal.hidden = true;
+}
+
+// 가중치 기반 랜덤 선택
+function pickGambleSegment() {
+  let roll = Math.random() * totalWeight;
+  for (const seg of wheelLayout) {
+    if (roll < seg.weight) return seg;
+    roll -= seg.weight;
+  }
+  return wheelLayout[wheelLayout.length - 1];
+}
+
+let wheelSpinTotal = 0; // 돌림판이 누적으로 회전한 각도 (계속 같은 방향으로 더 돌게)
+
+function handleSpin() {
+  const cost = CONFIG.gamble.spinCost;
+
+  if (state.isSpinning) return;
+
+  if (state.money < cost) {
+    el.spinBtn.classList.remove("shake");
+    void el.spinBtn.offsetWidth;
+    el.spinBtn.classList.add("shake");
+    return;
+  }
+
+  state.money -= cost;
+  renderEconomy();
+
+  state.isSpinning = true;
+  el.spinBtn.disabled = true;
+
+  const target = pickGambleSegment();
+
+  // 포인터는 12시 방향 고정 → 목표 구간 중앙이 12시에 오도록 회전각을 계산한다.
+  // wheelSpinTotal은 매 스핀마다 누적되므로(계속 같은 방향으로 더 돔), 목표 각도는 항상
+  // "0deg에서부터"가 아니라 "현재 wheelSpinTotal이 실제로 가리키고 있는 위치에서부터" 계산해야 한다.
+  // 이걸 무시하고 매번 절대각(360*extraSpins + (360-midDeg))을 그대로 더하면, 두 번째 스핀부터는
+  // 이전 스핀이 남긴 회전 잔여값이 반영되지 않아 화면에 멈추는 조각과 실제 당첨 결과가 어긋난다.
+  const currentAngle = wheelSpinTotal % 360;
+  const desiredAngle = 360 - target.midDeg; // 이 각도만큼 돌면 목표 조각 중앙이 12시(포인터)에 옴
+  let deltaToTarget = desiredAngle - currentAngle;
+  if (deltaToTarget <= 0) deltaToTarget += 360; // 항상 양의 방향(시계방향)으로 더 돌도록 보정
+
+  const extraSpins = 5 + Math.floor(Math.random() * 3);
+  const targetRotation = 360 * extraSpins + deltaToTarget;
+  wheelSpinTotal += targetRotation;
+
+  el.wheel.style.transform = `rotate(${wheelSpinTotal}deg)`;
+
+  window.setTimeout(() => {
+    resolveGambleResult(target, cost);
+    state.isSpinning = false;
+    el.spinBtn.disabled = state.money < CONFIG.gamble.spinCost;
+  }, 4300);
+}
+
+function resolveGambleResult(segment, cost) {
+  const reward = Math.round(cost * segment.multiplier);
+  state.money += reward;
+
+  // 업적 판정용 통계 기록
+  state.gambleSpinCount += 1;
+  if (!segment.isJackpotBad) {
+    state.bestGambleMultiplier = Math.max(state.bestGambleMultiplier, segment.multiplier);
+  }
+  if (segment.isJackpotBad) {
+    state.debtorEncountered = true;
+  }
+
+  // 정상우의 빚 상태는 "그 상태를 만든 최저확률(0.5%, ???)이 다시 나오기 전까지" 유지된다.
+  // 즉 일반 배수가 나온다고 원래대로 돌아가는 게 아니라, 오직 ???가 다시 당첨됐을 때만 토글된다
+  // (정상우 상태에서 ??? 당첨 → 원래대로 복귀 / 원래 상태에서 ??? 당첨 → 정상우로 전환).
+  const wasDebtor = state.isDebtorMode;
+  if (segment.isJackpotBad) {
+    state.isDebtorMode = !state.isDebtorMode;
+  }
+  // isJackpotBad가 아니면 state.isDebtorMode는 그대로 둔다(건드리지 않음).
+
+  renderEconomy();
+  renderDebtorMode();
+
+  let message, resultClass;
+  if (segment.isJackpotBad) {
+    // 배수를 적용하지 않고(위 reward가 이미 cost와 동일) 캐릭터만 전환한다 — 돈은 잃지 않는다.
+    // wasDebtor 기준으로 "방금 정상우가 됐는지" "방금 원래대로 돌아왔는지"를 구분해서 안내한다.
+    message = wasDebtor ? "??? 원래대로 돌아왔어요!" : "??? 무언가 나타났습니다...";
+    resultClass = "jackpot-bad";
+  } else if (wasDebtor) {
+    // 정상우 상태는 그대로 유지된 채 일반 배수만 당첨된 경우
+    message = `${segment.label}... +${formatMoneyCompact(reward)} (정상우 모드 유지 중)`;
+    resultClass = segment.multiplier >= 1 ? "win" : "lose";
+  } else if (segment.multiplier >= 1) {
+    message = `${segment.label} 당첨! +${formatMoneyCompact(reward)}`;
+    resultClass = "win";
+  } else {
+    message = `${segment.label}... +${formatMoneyCompact(reward)}`;
+    resultClass = "lose";
+  }
+
+  spawnGambleResultPopup(message, resultClass);
+}
+
+// 도박 결과를 룰렛 위에 잠깐 떠올랐다 사라지는 팝업으로 보여준다.
+function spawnGambleResultPopup(message, resultClass) {
+  if (!el.wheelWrap) return;
+  const popup = document.createElement("div");
+  popup.className = `gamble-result-popup ${resultClass}`;
+  popup.textContent = message;
+  el.wheelWrap.appendChild(popup);
+  popup.addEventListener("animationend", () => popup.remove());
+}
+
+/* ---------------------------------------------------------
+   10. 배속 시스템
+   --------------------------------------------------------- */
+
+// 현재 상태 기준으로 해금된 배속 값 목록 (항상 1은 포함)
+function getUnlockedSpeeds() {
+  return CONFIG.speeds.filter((s) => s.checkUnlocked(state)).map((s) => s.value);
+}
+
+function renderSpeedOptions() {
+  if (!el.speedOptions) return;
+  const unlocked = getUnlockedSpeeds();
+
+  // 지금 선택된 배속이 더 이상 해금 조건을 만족 못 하면(이론상 발생 안 하지만 방어적으로) ×1로 되돌림
+  if (!unlocked.includes(state.speedLevel)) {
+    state.speedLevel = 1;
+  }
+
+  el.speedOptions.querySelectorAll(".speed-btn").forEach((btn) => {
+    const value = Number(btn.dataset.speed);
+    const isUnlocked = unlocked.includes(value);
+    btn.classList.toggle("active", value === state.speedLevel);
+    btn.classList.toggle("locked", !isUnlocked);
+    btn.disabled = !isUnlocked;
+  });
+
+  if (el.speedHint) {
+    if (unlocked.length < CONFIG.speeds.length) {
+      el.speedHint.textContent = "×2는 모든 주민 고용, ×3은 모든 주민 Lv.15 달성 시 열려요.";
+    } else {
+      el.speedHint.textContent = "모든 배속이 열렸어요!";
+    }
+  }
+}
+
+function handleSpeedSelect(value) {
+  const unlocked = getUnlockedSpeeds();
+  if (!unlocked.includes(value)) return;
+  state.speedLevel = value;
+  renderSpeedOptions();
+}
+
+/* ---------------------------------------------------------
+   11. 저장 (슬롯 3개, localStorage)
+   --------------------------------------------------------- */
+const SAVE_KEY_PREFIX = "village-clicker-save-";
+
+// 저장 대상은 state 전체가 아니라, 다시 게임을 복원하는 데 필요한 필드만 골라 담는다.
+function serializeState() {
+  return {
+    money: state.money,
+    clickLevel: state.clickLevel,
+    isDebtorMode: state.isDebtorMode,
+    speedLevel: state.speedLevel,
+    hasSeenVictory: state.hasSeenVictory,
+    villagers: state.villagers,
+
+    achievements: state.achievements,
+    gambleSpinCount: state.gambleSpinCount,
+    bestGambleMultiplier: state.bestGambleMultiplier,
+    debtorEncountered: state.debtorEncountered,
+
+    goalMoney: state.goalMoney,
+    fightChallengeFailCount: state.fightChallengeFailCount,
+
+    savedAt: Date.now(),
+  };
+}
+
+function applySavedState(saved) {
+  state.money = saved.money ?? 0;
+  // 클릭 레벨 상한(maxLevel)이 나중에 추가된 값이라, 그 이전에 저장된 세이브에는 상한을 넘는
+  // clickLevel이 들어있을 수 있다 — 그대로 복원하면 밸런스 상한이 무력화되므로 항상 클램프한다.
+  state.clickLevel = Math.min(saved.clickLevel ?? 1, CONFIG.click.maxLevel);
+  state.isDebtorMode = !!saved.isDebtorMode;
+  state.speedLevel = saved.speedLevel ?? 1;
+  state.hasSeenVictory = !!saved.hasSeenVictory;
+
+  state.achievements = saved.achievements ?? {};
+  state.gambleSpinCount = saved.gambleSpinCount ?? 0;
+  state.bestGambleMultiplier = saved.bestGambleMultiplier ?? 0;
+  state.debtorEncountered = !!saved.debtorEncountered;
+
+  // goalMoney가 저장 안 된 옛날 세이브 파일이면 기본 목표금액으로 되돌린다.
+  state.goalMoney = saved.goalMoney ?? CONFIG.goalMoney;
+  state.fightChallengeFailCount = saved.fightChallengeFailCount ?? 0;
+
+  // 저장 시점 이후 CONFIG에 주민이 추가됐을 수 있으니, 저장된 값이 있는 주민만 덮어쓰고 나머지는 기본값 유지
+  CONFIG.villagers.forEach((v) => {
+    if (saved.villagers && saved.villagers[v.id]) {
+      state.villagers[v.id] = {
+        hired: !!saved.villagers[v.id].hired,
+        level: saved.villagers[v.id].level ?? 1,
+      };
+    } else {
+      state.villagers[v.id] = { hired: false, level: 1 };
+    }
+  });
+}
+
+function readSlot(slotIndex) {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY_PREFIX + slotIndex);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeSlot(slotIndex, data) {
+  try {
+    window.localStorage.setItem(SAVE_KEY_PREFIX + slotIndex, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function clearSlot(slotIndex) {
+  try {
+    window.localStorage.removeItem(SAVE_KEY_PREFIX + slotIndex);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function formatSlotDesc(saved) {
+  if (!saved) return "빈 슬롯";
+  const date = new Date(saved.savedAt);
+  const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${formatMoneyCompact(saved.money)} · ${dateStr}`;
+}
+
+function renderSaveSlots() {
+  if (!el.saveSlots) return;
+  el.saveSlots.innerHTML = "";
+
+  for (let i = 1; i <= CONFIG.saveSlotCount; i++) {
+    const saved = readSlot(i);
+    const row = document.createElement("div");
+    row.className = "save-slot";
+    row.innerHTML = `
+      <div class="save-slot-info">
+        <p class="save-slot-title">슬롯 ${i}</p>
+        <p class="save-slot-desc">${formatSlotDesc(saved)}</p>
+      </div>
+      <div class="save-slot-actions">
+        <button class="slot-btn slot-btn-save" data-action="save" data-slot="${i}">저장</button>
+        <button class="slot-btn slot-btn-load" data-action="load" data-slot="${i}" ${saved ? "" : "disabled"}>불러오기</button>
+      </div>
+    `;
+    el.saveSlots.appendChild(row);
+  }
+}
+
+function handleSaveSlot(slotIndex) {
+  const ok = writeSlot(slotIndex, serializeState());
+  renderSaveSlots();
+  if (!ok) {
+    // 저장 실패(저장공간 부족 등) 시에도 조용히 무시하지 않고 슬롯 설명에 안내
+    const row = el.saveSlots.children[slotIndex - 1];
+    if (row) {
+      const desc = row.querySelector(".save-slot-desc");
+      if (desc) desc.textContent = "저장 실패 (저장 공간을 확인해주세요)";
+    }
+  }
+}
+
+function handleLoadSlot(slotIndex) {
+  const saved = readSlot(slotIndex);
+  if (!saved) return;
+  applySavedState(saved);
+  renderAll();
+}
+
+/* ---------------------------------------------------------
+   12. 게임 초기화 (처음부터 다시 시작)
+   --------------------------------------------------------- */
+function resetGame() {
+  state.money = 0;
+  state.clickLevel = 1;
+  state.isDebtorMode = false;
+  state.speedLevel = 1;
+  state.currentTheme = "forest";
+  state.hasSeenVictory = false;
+
+  state.achievements = {};
+  state.gambleSpinCount = 0;
+  state.bestGambleMultiplier = 0;
+  state.debtorEncountered = false;
+
+  state.goalMoney = CONFIG.goalMoney;
+  state.fightChallengeFailCount = 0;
+
+  currentHireTheme = "forest"; // 고용 탭도 첫 테마로 되돌림
+  CONFIG.villagers.forEach((v) => {
+    state.villagers[v.id] = { hired: false, level: 1 };
+  });
+  renderAll();
+  switchTab("click");
+  switchTheme("forest");
+}
+
+function openResetModal() {
+  el.resetModal.hidden = false;
+}
+function closeResetModal() {
+  el.resetModal.hidden = true;
+}
+
+/* ---------------------------------------------------------
+   12-1. 목표 금액 달성(빚 다 갚음) 축하 모달
+   --------------------------------------------------------- */
+function openVictoryModal() {
+  if (el.victoryDesc) {
+    // 맞다이 신청 실패로 목표 금액(state.goalMoney)이 커진 상태로 달성했을 수도 있으니,
+    // 항상 그 순간의 실제 목표 금액을 반영해서 보여준다(고정 텍스트로 두면 실제 달성 금액과 어긋난다).
+    el.victoryDesc.textContent = `${formatMoneyCompact(state.goalMoney)}을 전부 모았어요. 정말 대단해요!`;
+  }
+  if (el.victoryModal) el.victoryModal.hidden = false;
+}
+function closeVictoryModal() {
+  if (el.victoryModal) el.victoryModal.hidden = true;
+}
+
+/* ---------------------------------------------------------
+   12-2. 업적(도전과제)
+   --------------------------------------------------------- */
+
+// 상태가 바뀔 때마다 호출 — 아직 안 딴 업적 중 조건을 만족하는 게 있으면 달성 처리하고 토스트를 띄운다.
+// 한 프레임(한 번의 renderEconomy 호출)에 여러 개가 동시에 달성될 수 있으니, 새로 딴 것들을 모아뒀다가
+// 토스트는 순서대로 하나씩 보여준다(동시에 여러 개 뜨면 안 보이니까).
+let achievementToastQueue = [];
+let achievementToastPlaying = false;
+
+function checkAchievements() {
+  let newlyUnlocked = [];
+  CONFIG.achievements.forEach((a) => {
+    if (state.achievements[a.id]) return; // 이미 달성됨
+    if (a.check(state)) {
+      state.achievements[a.id] = true;
+      newlyUnlocked.push(a);
+    }
+  });
+
+  if (newlyUnlocked.length > 0) {
+    achievementToastQueue.push(...newlyUnlocked);
+    playNextAchievementToast();
+  }
+}
+
+function playNextAchievementToast() {
+  if (achievementToastPlaying || achievementToastQueue.length === 0) return;
+  const a = achievementToastQueue.shift();
+  achievementToastPlaying = true;
+
+  el.achievementToastIcon.textContent = a.icon;
+  el.achievementToastName.textContent = a.name;
+  el.achievementToast.hidden = false;
+
+  // CSS 애니메이션(achievement-toast-anim)이 3.2s로 잡혀있으니 그와 맞춰서 다음 큐로 넘어간다.
+  // 애니메이션을 처음부터 다시 재생하려면 DOM에서 껐다 켜야 하므로 reflow를 강제한다.
+  el.achievementToast.style.animation = "none";
+  void el.achievementToast.offsetWidth;
+  el.achievementToast.style.animation = "";
+
+  window.setTimeout(() => {
+    el.achievementToast.hidden = true;
+    achievementToastPlaying = false;
+    playNextAchievementToast();
+  }, 3200);
+}
+
+function renderAchievementModal() {
+  if (!el.achievementList) return;
+  const unlockedCount = CONFIG.achievements.filter((a) => state.achievements[a.id]).length;
+  el.achievementProgressText.textContent = `${unlockedCount} / ${CONFIG.achievements.length} 달성`;
+
+  el.achievementList.innerHTML = CONFIG.achievements
+    .map((a) => {
+      const unlocked = !!state.achievements[a.id];
+      return `
+        <div class="achievement-row${unlocked ? "" : " locked"}">
+          <span class="achievement-row-icon">${unlocked ? a.icon : "🔒"}</span>
+          <div class="achievement-row-text">
+            <span class="achievement-row-name">${unlocked ? a.name : "???"}</span>
+            <span class="achievement-row-desc">${unlocked ? a.desc : "아직 잠긴 도전과제예요"}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function openAchievementModal() {
+  renderAchievementModal();
+  if (el.achievementModal) el.achievementModal.hidden = false;
+}
+function closeAchievementModal() {
+  if (el.achievementModal) el.achievementModal.hidden = true;
+}
+
+/* ---------------------------------------------------------
+   12-3. "맞다이 신청" (정상우 모드 + Stage 5 전용 하이리스크 이벤트)
+   --------------------------------------------------------- */
+
+// 지금 참가비 계산: 실패할 때마다 baseCost가 2배씩 뛴다.
+function getFightChallengeCost() {
+  return CONFIG.fightChallenge.baseCost * Math.pow(CONFIG.fightChallenge.costMultiplierOnFail, state.fightChallengeFailCount);
+}
+
+// 버튼은 "정상우 모드 + Stage 5"일 때만 보인다.
+function renderFightChallengeButton() {
+  if (!el.fightChallengeBtn) return;
+  const isStage5 = (state.currentStage ?? getStage(state.clickLevel)) === 5;
+  const shouldShow = state.isDebtorMode && isStage5;
+  el.fightChallengeBtn.hidden = !shouldShow;
+}
+
+function openFightChallengeModal() {
+  const cost = getFightChallengeCost();
+  el.fightChallengeCost.textContent = formatMoneyCompact(cost);
+  el.fightChallengeModal.hidden = false;
+}
+function closeFightChallengeModal() {
+  el.fightChallengeModal.hidden = true;
+}
+
+function handleFightChallengeConfirm() {
+  const cost = getFightChallengeCost();
+  closeFightChallengeModal();
+
+  if (state.money < cost) {
+    // 참가비가 부족하면 조용히 취소 — 버튼 자체가 애초에 돈 있을 때만 눌리게 해도 되지만,
+    // 안전하게 한 번 더 확인한다.
+    return;
+  }
+
+  state.money -= cost;
+
+  const success = Math.random() < CONFIG.fightChallenge.successChance;
+  if (success) {
+    // 성공: 빚을 전부 청산 (목표 금액만큼 즉시 채운다 — 이미 모아둔 돈은 그대로 유지)
+    state.money = Math.max(state.money, state.goalMoney);
+    state.fightChallengeFailCount = 0; // 성공했으니 다음에 다시 하려면 원래 비용부터 시작
+  } else {
+    // 실패: 빚(목표 금액)이 2배로 불어나고, 다음 참가비도 2배로 뛴다.
+    // 레벨 상한도 늘어난 빚에 맞춰 함께 늘어난다(getVillagerMaxLevel이 state.goalMoney를 참조).
+    state.goalMoney *= 2;
+    state.fightChallengeFailCount += 1;
+  }
+
+  renderAll();
+  showFightResultModal(success);
+}
+
+function showFightResultModal(success) {
+  el.fightResultModalBox.classList.toggle("result-fail", !success);
+  if (success) {
+    el.fightResultEmoji.textContent = "🎉";
+    el.fightResultTitle.textContent = "승리했어요!";
+    el.fightResultDesc.textContent = "정상우를 이기고 빚을 모두 청산했어요!";
+  } else {
+    el.fightResultEmoji.textContent = "💥";
+    el.fightResultTitle.textContent = "패배했어요...";
+    el.fightResultDesc.textContent = `빚이 2배로 늘어났어요. 남은 빚: ${formatMoneyCompact(Math.max(0, state.goalMoney - state.money))}`;
+  }
+  el.fightResultModal.hidden = false;
+}
+function closeFightResultModal() {
+  el.fightResultModal.hidden = true;
+}
+
+/* ---------------------------------------------------------
+   13. 초기화
+   --------------------------------------------------------- */
+function init() {
+  el.spinCost.textContent = formatMoneyCompact(CONFIG.gamble.spinCost);
+
+  el.mainCharacter.addEventListener("click", handleClick);
+  el.upgradeBtn.addEventListener("click", handleUpgrade);
+  el.spinBtn.addEventListener("click", handleSpin);
+
+  el.tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  el.themeButtons.forEach((btn) => {
+    btn.addEventListener("click", () => switchTheme(btn.dataset.theme));
+  });
+
+  // 배속 버튼
+  if (el.speedOptions) {
+    el.speedOptions.querySelectorAll(".speed-btn").forEach((btn) => {
+      btn.addEventListener("click", () => handleSpeedSelect(Number(btn.dataset.speed)));
+    });
+  }
+
+  // 저장/불러오기 버튼 (슬롯이 동적으로 재생성되므로 컨테이너에 위임)
+  if (el.saveSlots) {
+    el.saveSlots.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const slot = Number(btn.dataset.slot);
+      if (btn.dataset.action === "save") handleSaveSlot(slot);
+      else if (btn.dataset.action === "load") handleLoadSlot(slot);
+    });
+  }
+
+  // 게임 초기화 모달
+  if (el.resetBtn) el.resetBtn.addEventListener("click", openResetModal);
+  if (el.resetCancelBtn) el.resetCancelBtn.addEventListener("click", closeResetModal);
+  if (el.resetConfirmBtn) {
+    el.resetConfirmBtn.addEventListener("click", () => {
+      resetGame();
+      closeResetModal();
+    });
+  }
+
+  // 룰렛 확률표 모달
+  if (el.payoutTableBtn) el.payoutTableBtn.addEventListener("click", openPayoutModal);
+  if (el.payoutCloseBtn) el.payoutCloseBtn.addEventListener("click", closePayoutModal);
+
+  // 목표 달성(빚 다 갚음) 축하 모달: 계속하기는 그냥 닫고, 초기화하기는 기존 초기화 확인 모달로 넘긴다
+  if (el.victoryContinueBtn) el.victoryContinueBtn.addEventListener("click", closeVictoryModal);
+  if (el.victoryResetBtn) {
+    el.victoryResetBtn.addEventListener("click", () => {
+      closeVictoryModal();
+      openResetModal();
+    });
+  }
+
+  // 업적(도전과제) 모달
+  if (el.achievementBtn) el.achievementBtn.addEventListener("click", openAchievementModal);
+  if (el.achievementCloseBtn) el.achievementCloseBtn.addEventListener("click", closeAchievementModal);
+
+  // "맞다이 신청" 버튼/모달
+  if (el.fightChallengeBtn) el.fightChallengeBtn.addEventListener("click", openFightChallengeModal);
+  if (el.fightChallengeCancelBtn) el.fightChallengeCancelBtn.addEventListener("click", closeFightChallengeModal);
+  if (el.fightChallengeConfirmBtn) el.fightChallengeConfirmBtn.addEventListener("click", handleFightChallengeConfirm);
+  if (el.fightResultCloseBtn) el.fightResultCloseBtn.addEventListener("click", closeFightResultModal);
+
+  buildVillagerDom(); // "주민 확인" 화면의 15명 슬롯(이미지+잠금표시) DOM 생성
+
+  buildWheelBackground();
+  renderHireThemeTabs(); // "주민 고용" 화면 초기 테마탭 렌더
+  renderAll();
+  startPassiveIncomeLoop();
+}
+
+init();
