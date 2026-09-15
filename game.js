@@ -330,6 +330,92 @@ const state = {
 const villagerIncomeTimers = Object.fromEntries(CONFIG.villagers.map((v) => [v.id, 0]));
 
 /* ---------------------------------------------------------
+   2-1. 커스텀 이미지/이름/애니메이션/말풍선 (게임 진행 저장과는 별개로 관리)
+   --------------------------------------------------------- */
+// 유저가 직접 설정하는 커스텀 데이터. 게임 진행(state)과는 독립적으로 localStorage에
+// 별도 저장한다 — 저장 슬롯을 초기화하거나 바꿔도 커스텀 이미지/이름은 유지되는 게 자연스럽다.
+// key: 주민 id 또는 "main"(메인 캐릭터) → { name, characterImage(dataURL), backgroundImage(dataURL),
+//      debtorImage(dataURL, main 전용), debtorName(main 전용), motion, bubbleText }
+const CUSTOM_STORAGE_KEY = "village-clicker-custom-v1";
+
+const CUSTOM_MOTIONS = [
+  { id: "", label: "없음 (정지)" },
+  { id: "motion-bounce", label: "통통 튀기" },
+  { id: "motion-sway", label: "좌우 흔들기" },
+  { id: "motion-float", label: "천천히 떠다니기" },
+  { id: "motion-walk", label: "좌우로 걸어다니기" },
+  { id: "motion-spin", label: "제자리 회전" },
+  { id: "motion-pulse", label: "커졌다 작아지기" },
+  { id: "motion-shake", label: "빠르게 흔들기" },
+  { id: "motion-wiggle", label: "꿈틀거리기" },
+];
+
+let customData = loadCustomData();
+
+function loadCustomData() {
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveCustomData() {
+  try {
+    window.localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customData));
+    return true;
+  } catch (e) {
+    // 용량 초과(이미지가 너무 많거나 큼) 등으로 저장 실패 시 조용히 실패 처리 — 호출부에서 알림 처리
+    return false;
+  }
+}
+
+function getCustomEntry(id) {
+  return customData[id] || {};
+}
+
+function setCustomField(id, field, value) {
+  if (!customData[id]) customData[id] = {};
+  if (value === "" || value === null || value === undefined) {
+    delete customData[id][field];
+    if (Object.keys(customData[id]).length === 0) delete customData[id];
+  } else {
+    customData[id][field] = value;
+  }
+  return saveCustomData();
+}
+
+// 표시용 이름: 커스텀 이름이 있으면 그걸, 없으면 기본 이름
+function getDisplayName(villagerData) {
+  return getCustomEntry(villagerData.id).name || villagerData.name;
+}
+
+// 표시용 캐릭터 이미지: 커스텀 이미지가 있으면 그걸(dataURL), 없으면 기본 경로
+function getDisplayCharacterImage(villagerData) {
+  return getCustomEntry(villagerData.id).characterImage || villagerData.characterImage;
+}
+
+// 표시용 배경 이미지
+function getDisplayBackgroundImage(villagerData) {
+  return getCustomEntry(villagerData.id).backgroundImage || villagerData.backgroundImage;
+}
+
+// 표시용 모션 클래스: 커스텀 설정이 있으면(빈 문자열 포함) 그걸, 없으면 CONFIG 기본값
+function getDisplayMotion(id) {
+  const custom = getCustomEntry(id);
+  if (custom.motion !== undefined) return custom.motion;
+  return CONFIG.villagerMotions[id] || "";
+}
+
+// 커스텀 말풍선 문구 목록 (한 줄에 하나씩 입력) — showVillagerSpeechBubble에서 랜덤으로 하나 골라 쓴다.
+function getCustomBubbleLines(id) {
+  const custom = getCustomEntry(id);
+  if (!custom.bubbleText) return [];
+  return custom.bubbleText.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+/* ---------------------------------------------------------
    3. 계산 유틸
    --------------------------------------------------------- */
 
@@ -557,6 +643,30 @@ const el = {
   achievementToastIcon: document.getElementById("achievement-toast-icon"),
   achievementToastName: document.getElementById("achievement-toast-name"),
 
+  customTargetList: document.getElementById("custom-target-list"),
+  customExportBtn: document.getElementById("custom-export-btn"),
+  customImportBtn: document.getElementById("custom-import-btn"),
+  customImportFile: document.getElementById("custom-import-file"),
+  customEditModal: document.getElementById("custom-edit-modal"),
+  customEditTitle: document.getElementById("custom-edit-title"),
+  customEditName: document.getElementById("custom-edit-name"),
+  customEditCharPreview: document.getElementById("custom-edit-char-preview"),
+  customEditCharFile: document.getElementById("custom-edit-char-file"),
+  customEditCharClear: document.getElementById("custom-edit-char-clear"),
+  customEditBgField: document.getElementById("custom-edit-bg-field"),
+  customEditBgPreview: document.getElementById("custom-edit-bg-preview"),
+  customEditBgFile: document.getElementById("custom-edit-bg-file"),
+  customEditBgClear: document.getElementById("custom-edit-bg-clear"),
+  customEditDebtorField: document.getElementById("custom-edit-debtor-field"),
+  customEditDebtorPreview: document.getElementById("custom-edit-debtor-preview"),
+  customEditDebtorFile: document.getElementById("custom-edit-debtor-file"),
+  customEditDebtorClear: document.getElementById("custom-edit-debtor-clear"),
+  customEditMotion: document.getElementById("custom-edit-motion"),
+  customEditBubble: document.getElementById("custom-edit-bubble"),
+  customEditError: document.getElementById("custom-edit-error"),
+  customEditResetBtn: document.getElementById("custom-edit-reset-btn"),
+  customEditCloseBtn: document.getElementById("custom-edit-close-btn"),
+
   fightChallengeBtn: document.getElementById("fight-challenge-btn"),
   fightChallengeModal: document.getElementById("fight-challenge-modal"),
   fightChallengeCost: document.getElementById("fight-challenge-cost"),
@@ -621,14 +731,17 @@ function renderStage() {
 function renderDebtorMode() {
   el.charGroupNormal.hidden = state.isDebtorMode;
   el.charGroupDebtor.hidden = !state.isDebtorMode;
-  el.goalLabel.textContent = state.isDebtorMode ? "정상우의 빚" : "디디의 빚";
+  const customMain = getCustomEntry("main");
+  const debtorGoalLabel = customMain.debtorName || "정상우";
+  const normalGoalLabel = customMain.name || "디디";
+  el.goalLabel.textContent = state.isDebtorMode ? `${debtorGoalLabel}의 빚` : `${normalGoalLabel}의 빚`;
   el.mainStage.classList.toggle("debtor-mode", state.isDebtorMode); // 배경을 갈색 계열로 전환하는 트리거
   applyStageAssets(state.currentStage ?? getStage(state.clickLevel), state.isDebtorMode);
   renderFightChallengeButton();
 
   // 상단 탭 메뉴 "디디"/카드 제목 "디디 강화"도 정상우 모드에선 "정상우"/"정상우 강화"로,
-  // 아이콘도 🌱(디디) <-> 🐟(정상우)로 함께 전환한다.
-  const label = state.isDebtorMode ? "정상우" : "디디";
+  // 아이콘도 🌱(디디) <-> 🐟(정상우)로 함께 전환한다. 커스텀 이름이 있으면 그걸 우선 쓴다.
+  const label = state.isDebtorMode ? debtorGoalLabel : normalGoalLabel;
   const icon = state.isDebtorMode ? "🐟" : "🌱";
   if (el.clickTabIcon) el.clickTabIcon.textContent = icon;
   if (el.clickTabLabel) el.clickTabLabel.textContent = label;
@@ -648,23 +761,30 @@ function applyStageAssets(stage, isDebtor) {
   const assets = CONFIG.stageAssets[stage - 1];
   if (!assets) return;
 
+  // 메인 캐릭터에 커스텀 이미지가 있으면 Stage 단계와 무관하게 그 이미지 하나로 고정한다
+  // (커스텀은 "이 캐릭터를 이렇게 보이게" 지정하는 것이라, Stage별 5장을 다 요구하지 않는다).
+  const customMain = getCustomEntry("main");
+  const normalSrc = customMain.characterImage || assets.normal;
+  const debtorSrc = customMain.debtorImage || assets.debtor;
+
   // 평소 캐릭터: src가 실제로 바뀔 때만 다시 로드하도록 비교해서, 매 렌더링마다 불필요하게
   // 네트워크 요청이 반복되거나 onerror가 다시 실행되는 것을 막는다.
-  if (assets.normal && el.charNormal.dataset.stageSrc !== assets.normal) {
-    el.charNormal.dataset.stageSrc = assets.normal;
+  if (normalSrc && el.charNormal.dataset.stageSrc !== normalSrc) {
+    el.charNormal.dataset.stageSrc = normalSrc;
     el.charNormal.hidden = false; // 로드 재시도 — 실패하면 onerror가 다시 숨긴다
-    el.charNormal.src = assets.normal;
+    el.charNormal.src = normalSrc;
   }
 
   // 도박 캐릭터: 마찬가지로 src가 바뀔 때만 다시 로드.
-  if (assets.debtor && el.charImgDebtor.dataset.stageSrc !== assets.debtor) {
-    el.charImgDebtor.dataset.stageSrc = assets.debtor;
+  if (debtorSrc && el.charImgDebtor.dataset.stageSrc !== debtorSrc) {
+    el.charImgDebtor.dataset.stageSrc = debtorSrc;
     el.charImgDebtor.hidden = false; // 로드 재시도 — 실패하면 onerror가 다시 숨긴다
-    el.charImgDebtor.src = assets.debtor;
+    el.charImgDebtor.src = debtorSrc;
   }
 
   // 배경: src가 실제로 바뀔 때만 다시 로드. onerror가 로드 실패 시 hidden 처리해서
   // #main-stage 자체의 그라디언트(.stage-bg.stage-N)가 자연스럽게 보이게 한다.
+  // 배경은 커스텀 대상이 아니다(메인 캐릭터 커스텀은 캐릭터 이미지/이름까지만).
   if (assets.background && el.mainStageBgImg.dataset.stageSrc !== assets.background) {
     el.mainStageBgImg.dataset.stageSrc = assets.background;
     el.mainStageBgImg.hidden = false;
@@ -864,31 +984,51 @@ function buildVillagerDom() {
     const slot = document.createElement("div");
     slot.className = "villager-slot";
     slot.id = `slot-${v.id}`;
-    const motionClass = CONFIG.villagerMotions[v.id] || "";
-    // 배경/캐릭터 이미지는 있으면 <img>가 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
-    // 기존 단색 그라디언트 배경(.villager-visual)과 이모지(.villager-emoji)가 그대로 보인다.
-    const bgImgTag = v.backgroundImage
-      ? `<img class="villager-bg-img" src="${v.backgroundImage}" alt="" onerror="this.hidden=true;" />`
-      : "";
-    const charImgTag = v.characterImage
-      ? `<img class="villager-character-img ${motionClass}" src="${v.characterImage}" alt="${v.name}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
-      : "";
-    slot.innerHTML = `
+    slot.innerHTML = buildVillagerVisualHtml(v);
+    if (themePanel) themePanel.appendChild(slot);
+  });
+}
+
+// 주민 슬롯 내부(.villager-visual)의 HTML을 커스텀 데이터를 반영해서 만든다.
+// buildVillagerDom(최초 생성)과 refreshVillagerSlot(커스텀 변경 후 갱신) 둘 다 이 함수를 공유한다.
+function buildVillagerVisualHtml(v) {
+  const motionClass = getDisplayMotion(v.id);
+  const displayName = getDisplayName(v);
+  const charImage = getDisplayCharacterImage(v);
+  const bgImage = getDisplayBackgroundImage(v);
+  // 배경/캐릭터 이미지는 있으면 <img>가 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
+  // 기존 단색 그라디언트 배경(.villager-visual)과 이모지(.villager-emoji)가 그대로 보인다.
+  const bgImgTag = bgImage
+    ? `<img class="villager-bg-img" src="${bgImage}" alt="" onerror="this.hidden=true;" />`
+    : "";
+  const charImgTag = charImage
+    ? `<img class="villager-character-img ${motionClass}" src="${charImage}" alt="${displayName}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
+    : "";
+  return `
       <div class="villager-visual">
         ${bgImgTag}
         <div class="bg-decor" id="bg-decor-${v.id}"></div>
         ${charImgTag}
         <span class="villager-emoji ${motionClass}" ${charImgTag ? "hidden" : ""}>${v.emoji}</span>
         <div class="villager-speech-bubble" id="bubble-${v.id}" hidden></div>
-        <div class="villager-name-badge">${v.emoji} ${v.name}</div>
+        <div class="villager-name-badge">${v.emoji} ${displayName}</div>
         <div class="villager-lock-overlay" id="lock-${v.id}">
           <span class="lock-icon">🔒</span>
           <span class="lock-text">아직 고용되지 않음</span>
         </div>
       </div>
     `;
-    if (themePanel) themePanel.appendChild(slot);
-  });
+}
+
+// 커스텀 설정(이름/이미지/모션)이 바뀐 뒤, 이미 만들어져 있는 주민 슬롯의 내용을 다시 그린다.
+// buildVillagerDom은 "최초 1회만" 생성하므로, 커스텀 변경을 화면에 반영하려면 이 함수가 필요하다.
+function refreshVillagerSlot(villagerId) {
+  const v = CONFIG.villagers.find((x) => x.id === villagerId);
+  const slot = document.getElementById(`slot-${villagerId}`);
+  if (!v || !slot) return;
+  slot.innerHTML = buildVillagerVisualHtml(v);
+  // 슬롯을 다시 그렸으니 잠금 상태(고용 여부)도 즉시 반영해야 한다.
+  renderVillagers();
 }
 
 // 특정 주민의 캐릭터 위에 말풍선을 잠깐 띄운다. (예: 강화했을 때 "고마워요!" 같은 반응)
@@ -931,9 +1071,11 @@ function setMainBackgroundDecor(items) {
 function hireVisualCharacterHtml(v) {
   // 이미지가 있으면 <img>가 우선 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
   // 옆의 이모지(.hire-emoji)가 그대로 보인다.
-  if (!v.characterImage) return `<span class="hire-emoji">${v.emoji}</span>`;
+  const charImage = getDisplayCharacterImage(v);
+  const displayName = getDisplayName(v);
+  if (!charImage) return `<span class="hire-emoji">${v.emoji}</span>`;
   return `
-    <img class="hire-character-img" src="${v.characterImage}" alt="${v.name}"
+    <img class="hire-character-img" src="${charImage}" alt="${displayName}"
          onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
     <span class="hire-emoji" hidden>${v.emoji}</span>
   `;
@@ -969,8 +1111,7 @@ function renderHireThemeContent() {
           <div class="hire-card" id="hire-${v.id}">
             <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
             <div class="hire-info">
-              <h2 class="hire-name">${v.name}</h2>
-              <div class="hire-stat-row"><span>고용 비용</span><strong>${formatMoneyCompact(v.hireCost)}</strong></div>
+              <h2 class="hire-name">${getDisplayName(v)}</h2>
               <div class="hire-stat-row"><span>자동 수익</span><strong>${formatVillagerIncomeText(v, 1)}</strong></div>
             </div>
             <button class="hire-btn" data-villager="${v.id}" ${state.money < v.hireCost ? "disabled" : ""}>고용하기</button>
@@ -988,7 +1129,7 @@ function renderHireThemeContent() {
         <div class="hire-card hire-card-hired" id="hire-${v.id}">
           <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
           <div class="hire-info">
-            <h2 class="hire-name">${v.name}</h2>
+            <h2 class="hire-name">${getDisplayName(v)}</h2>
             <div class="upgrade-stats">
               <div class="stat-box">
                 <span class="stat-label">레벨</span>
@@ -1674,6 +1815,203 @@ function closeFightResultModal() {
 }
 
 /* ---------------------------------------------------------
+   12-1. 캐릭터 커스텀 (이름/이미지/모션/말풍선)
+   --------------------------------------------------------- */
+let currentCustomEditId = null; // 지금 편집 모달에서 다루고 있는 대상 id ("main" 또는 주민 id)
+
+// 이미지 파일을 base64 dataURL로 변환한다. 너무 큰 파일은 localStorage 용량(보통 5~10MB)을
+// 금방 채우므로, 일정 크기 이상이면 캔버스로 리사이즈해서 용량을 줄인다.
+const CUSTOM_IMAGE_MAX_DIMENSION = 512; // 리사이즈 기준 최대 가로/세로(px) — 캐릭터/배경 모두 이 정도면 충분히 선명하다
+
+function fileToResizedDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("이미지 파일만 선택할 수 있어요."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("파일을 읽는 데 실패했어요."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("이미지를 불러오는 데 실패했어요."));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > CUSTOM_IMAGE_MAX_DIMENSION || height > CUSTOM_IMAGE_MAX_DIMENSION) {
+          const scale = CUSTOM_IMAGE_MAX_DIMENSION / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        // PNG는 투명 배경을 지원해서 기본값으로 쓰되, 캐릭터 이미지는 투명 배경이 중요하므로
+        // 용량이 좀 커지더라도 PNG를 유지한다.
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 설정 탭의 "캐릭터 커스텀" 목록(메인 캐릭터 + 주민 15명)을 그린다.
+function renderCustomTargetList() {
+  if (!el.customTargetList) return;
+  const targets = [
+    { id: "main", label: "🌱 디디 / 정상우 (메인 캐릭터)" },
+    ...CONFIG.villagers.map((v) => ({ id: v.id, label: `${v.emoji} ${getDisplayName(v)}` })),
+  ];
+  el.customTargetList.innerHTML = targets
+    .map((t) => {
+      const hasCustom = Object.keys(getCustomEntry(t.id)).length > 0;
+      return `<button class="custom-target-btn ${hasCustom ? "has-custom" : ""}" data-custom-id="${t.id}">${t.label}${hasCustom ? " ✓" : ""}</button>`;
+    })
+    .join("");
+  el.customTargetList.querySelectorAll("[data-custom-id]").forEach((btn) => {
+    btn.addEventListener("click", () => openCustomEditModal(btn.dataset.customId));
+  });
+}
+
+// 커스텀 편집 모달을 연다. id가 "main"이면 메인 캐릭터용(배경/모션/말풍선 필드 숨김, 정상우
+// 이미지/이름 필드 보임), 그 외에는 주민용(배경/모션/말풍선 보임, 정상우 필드 숨김) 레이아웃으로 전환한다.
+function openCustomEditModal(id) {
+  currentCustomEditId = id;
+  const isMain = id === "main";
+  const custom = getCustomEntry(id);
+
+  el.customEditError.hidden = true;
+  el.customEditTitle.textContent = isMain
+    ? "디디 / 정상우 커스텀"
+    : `${CONFIG.villagers.find((v) => v.id === id)?.name ?? ""} 커스텀`;
+
+  el.customEditName.value = custom.name || "";
+  el.customEditName.placeholder = isMain ? "디디 (기본 이름 사용)" : "기본 이름 사용";
+
+  el.customEditCharPreview.src = custom.characterImage || "";
+  el.customEditCharPreview.hidden = !custom.characterImage;
+  el.customEditCharFile.value = "";
+
+  el.customEditBgField.hidden = isMain; // 메인 캐릭터는 배경을 별도로 커스텀하지 않음
+  el.customEditBgPreview.src = custom.backgroundImage || "";
+  el.customEditBgPreview.hidden = !custom.backgroundImage;
+  el.customEditBgFile.value = "";
+
+  el.customEditDebtorField.hidden = !isMain; // 정상우 이미지는 메인 캐릭터 전용
+  el.customEditDebtorPreview.src = custom.debtorImage || "";
+  el.customEditDebtorPreview.hidden = !custom.debtorImage;
+  el.customEditDebtorFile.value = "";
+
+  el.customEditMotion.innerHTML = CUSTOM_MOTIONS.map(
+    (m) => `<option value="${m.id}">${m.label}</option>`
+  ).join("");
+  el.customEditMotion.value = custom.motion || "";
+  el.customEditMotion.parentElement.hidden = isMain; // 메인 캐릭터는 클릭 애니메이션이 이미 고정이라 모션 커스텀 대상에서 제외
+
+  el.customEditBubble.value = custom.bubbleText || "";
+  el.customEditBubble.parentElement.hidden = isMain; // 말풍선은 주민 전용 기능
+
+  el.customEditModal.hidden = false;
+}
+
+function closeCustomEditModal() {
+  el.customEditModal.hidden = true;
+  currentCustomEditId = null;
+  renderCustomTargetList(); // 방금 편집한 내용이 목록의 "✓" 표시에 반영되도록
+}
+
+// 편집 모달의 각 입력이 바뀔 때마다 즉시 저장 + 화면 반영한다 (별도의 "저장" 버튼 없이 바로 적용).
+function applyCustomEditChange(field, value) {
+  if (!currentCustomEditId) return;
+  const ok = setCustomField(currentCustomEditId, field, value);
+  if (!ok) {
+    el.customEditError.textContent = "저장 공간이 부족해요. 다른 이미지를 지우고 다시 시도해보세요.";
+    el.customEditError.hidden = false;
+    return;
+  }
+  el.customEditError.hidden = true;
+  if (currentCustomEditId === "main") {
+    renderDebtorMode(); // 메인 캐릭터 이름/이미지 갱신
+  } else {
+    refreshVillagerSlot(currentCustomEditId); // 주민 확인 화면 슬롯 갱신
+    renderHireThemeContent(); // 주민 고용 화면 카드도 이름/이미지가 바뀌었을 수 있으니 갱신
+  }
+}
+
+async function handleCustomImageInput(fileInput, field, previewEl) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  try {
+    const dataUrl = await fileToResizedDataUrl(file);
+    previewEl.src = dataUrl;
+    previewEl.hidden = false;
+    applyCustomEditChange(field, dataUrl);
+  } catch (e) {
+    el.customEditError.textContent = e.message || "이미지를 불러오지 못했어요.";
+    el.customEditError.hidden = false;
+  }
+}
+
+function handleCustomImageClear(field, previewEl, fileInput) {
+  previewEl.src = "";
+  previewEl.hidden = true;
+  fileInput.value = "";
+  applyCustomEditChange(field, "");
+}
+
+// 커스텀 설정 전체를 파일로 내보낸다 (이미지 포함 — dataURL 형태 그대로라 파일 하나로 완결됨).
+function exportCustomData() {
+  const blob = new Blob([JSON.stringify(customData, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "village-clicker-custom.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// 내보낸 파일을 다시 불러온다. 형식이 이상하면 조용히 무시하지 않고 에러를 알려준다.
+function importCustomData(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        throw new Error("올바른 커스텀 설정 파일이 아니에요.");
+      }
+      customData = parsed;
+      const ok = saveCustomData();
+      if (!ok) {
+        window.alert("저장 공간이 부족해서 가져오기에 실패했어요.");
+        return;
+      }
+      // 이미 만들어진 주민 슬롯들을 전부 새로 그려서 가져온 커스텀이 즉시 반영되게 한다.
+      CONFIG.villagers.forEach((v) => refreshVillagerSlot(v.id));
+      renderDebtorMode();
+      renderHireThemeContent();
+      renderCustomTargetList();
+      window.alert("커스텀 설정을 가져왔어요!");
+    } catch (e) {
+      window.alert("파일을 읽는 데 실패했어요: " + (e.message || "형식이 올바르지 않아요."));
+    }
+  };
+  reader.readAsText(file);
+}
+
+// 커스텀 설정 전체를 초기화한다 (게임 진행 상황과는 무관 — 이름/이미지/모션/말풍선만 지운다).
+function resetAllCustomData() {
+  customData = {};
+  saveCustomData();
+  CONFIG.villagers.forEach((v) => refreshVillagerSlot(v.id));
+  renderDebtorMode();
+  renderHireThemeContent();
+  closeCustomEditModal();
+}
+
+/* ---------------------------------------------------------
    13. 초기화
    --------------------------------------------------------- */
 function init() {
@@ -1742,10 +2080,69 @@ function init() {
   if (el.fightChallengeConfirmBtn) el.fightChallengeConfirmBtn.addEventListener("click", handleFightChallengeConfirm);
   if (el.fightResultCloseBtn) el.fightResultCloseBtn.addEventListener("click", closeFightResultModal);
 
+  // 캐릭터 커스텀 (이름/이미지/모션/말풍선)
+  if (el.customExportBtn) el.customExportBtn.addEventListener("click", exportCustomData);
+  if (el.customImportBtn) el.customImportBtn.addEventListener("click", () => el.customImportFile.click());
+  if (el.customImportFile) {
+    el.customImportFile.addEventListener("change", () => {
+      const file = el.customImportFile.files[0];
+      if (file) importCustomData(file);
+      el.customImportFile.value = "";
+    });
+  }
+  if (el.customEditName) {
+    el.customEditName.addEventListener("input", () => applyCustomEditChange("name", el.customEditName.value.trim()));
+  }
+  if (el.customEditCharFile) {
+    el.customEditCharFile.addEventListener("change", () =>
+      handleCustomImageInput(el.customEditCharFile, "characterImage", el.customEditCharPreview)
+    );
+  }
+  if (el.customEditCharClear) {
+    el.customEditCharClear.addEventListener("click", () =>
+      handleCustomImageClear("characterImage", el.customEditCharPreview, el.customEditCharFile)
+    );
+  }
+  if (el.customEditBgFile) {
+    el.customEditBgFile.addEventListener("change", () =>
+      handleCustomImageInput(el.customEditBgFile, "backgroundImage", el.customEditBgPreview)
+    );
+  }
+  if (el.customEditBgClear) {
+    el.customEditBgClear.addEventListener("click", () =>
+      handleCustomImageClear("backgroundImage", el.customEditBgPreview, el.customEditBgFile)
+    );
+  }
+  if (el.customEditDebtorFile) {
+    el.customEditDebtorFile.addEventListener("change", () =>
+      handleCustomImageInput(el.customEditDebtorFile, "debtorImage", el.customEditDebtorPreview)
+    );
+  }
+  if (el.customEditDebtorClear) {
+    el.customEditDebtorClear.addEventListener("click", () =>
+      handleCustomImageClear("debtorImage", el.customEditDebtorPreview, el.customEditDebtorFile)
+    );
+  }
+  if (el.customEditMotion) {
+    el.customEditMotion.addEventListener("change", () => applyCustomEditChange("motion", el.customEditMotion.value));
+  }
+  if (el.customEditBubble) {
+    el.customEditBubble.addEventListener("input", () => applyCustomEditChange("bubbleText", el.customEditBubble.value));
+  }
+  if (el.customEditResetBtn) {
+    el.customEditResetBtn.addEventListener("click", () => {
+      if (window.confirm("모든 캐릭터의 커스텀 이름/이미지/모션/말풍선을 전부 초기화할까요?")) {
+        resetAllCustomData();
+      }
+    });
+  }
+  if (el.customEditCloseBtn) el.customEditCloseBtn.addEventListener("click", closeCustomEditModal);
+
   buildVillagerDom(); // "주민 확인" 화면의 15명 슬롯(이미지+잠금표시) DOM 생성
 
   buildWheelBackground();
   renderHireThemeTabs(); // "주민 고용" 화면 초기 테마탭 렌더
+  renderCustomTargetList(); // "설정 > 캐릭터 커스텀" 목록 초기 렌더
   renderAll();
   startPassiveIncomeLoop();
 }
