@@ -2,7 +2,7 @@
    동물 마을 키우기 — Phase 1
    클릭 → 돈 획득 → 클릭 업그레이드 → 메인 캐릭터 Stage 발전
 
-   이후 Phase(주민/테마/저장/방치/배속)를 쉽게 얹을 수 있도록
+   이후 Phase(직원/테마/저장/방치/배속)를 쉽게 얹을 수 있도록
    데이터(CONFIG)와 로직(state, 함수)을 분리해서 관리한다.
    ============================================================ */
 
@@ -11,9 +11,9 @@
    --------------------------------------------------------- */
 const CONFIG = {
   // 최종 목표 금액
-  goalMoney: 17825790000,
+  goalMoney: 100000000000,
 
-  // "맞다이 신청": 정상우 모드 + Stage 5(최종 단계)일 때만 나타나는 도박성 이벤트.
+  // "인생한방": 캐릭터2 모드 + Stage 5(최종 단계)일 때만 나타나는 도박성 이벤트.
   // 참가비를 내고 50% 확률로 (실패) 빚이 2배로 불어나거나, (성공) 빚을 전부 청산한다.
   // 실패할 때마다 다음 참가비도 함께 2배로 뛰어서 점점 더 위험해지는 구조.
   // 첫 참가비 10억은 목표금액(178억)의 약 5.6% 수준으로, 5번 연속 실패해도 320억(목표의 약 1.8배) 선에서
@@ -36,16 +36,16 @@ const CONFIG = {
   //   지나치게 저렴해 "버는 건 느는데 비용은 찔끔"으로 체감되는 원인이었다. 비용에도 동일한
   //   방식의 레벨 하한선(costMinPerLevel)을 추가해서, 하한선이 걸리는 구간이든 아니든 항상
   //   "비용 ≈ 수익의 8~10배" 비율이 유지되도록 고쳤다.)
-  // ※ 밸런스 5차 재조정 (버그: 클릭/주민/도박을 최적 순서로 플레이하는 시뮬레이션을 실제로 끝까지
+  // ※ 밸런스 5차 재조정 (버그: 클릭/직원/도박을 최적 순서로 플레이하는 시뮬레이션을 실제로 끝까지
   //   돌려보니, "목표금액 도달 ≈ 68분" 설계 의도와 다르게 클릭 업그레이드만으로 5분 만에 최종
   //   스테이지(Lv150)까지 뚫려버리고, 게임 전체도 15분 만에 끝나버렸다. 4차 조정에서 클릭 비용에
   //   하한선을 추가하며 "비용/수익 비율"만 맞추고 "레벨업 절대 속도"는 재검증하지 못했던 게 원인 —
   //   costGrowth(1.10)가 여전히 낮아서 레벨이 순식간에 수백까지 올라가며 수익이 지수적으로 폭주했다.
   //   → click.costGrowth를 1.115로 올려서(레벨당 비용 상승폭을 키움), 같은 시뮬레이션(초당 5클릭
   //     가정)으로 재검증한 결과 "목표금액 도달 ≈ 66분"으로 원래 설계 의도에 다시 맞춘 것을 확인했다.
-  // ※ 밸런스 6차 재조정 (버그: 주민 강화에는 만렙(villagerMaxLevelByIndex)이 있는데 클릭 레벨에는
+  // ※ 밸런스 6차 재조정 (버그: 직원 강화에는 만렙(villagerMaxLevelByIndex)이 있는데 클릭 레벨에는
   //   상한이 없어서, 오래 플레이하거나 방치할수록 클릭당 수익이 조·경 단위를 넘어 이론상 무한대로
-  //   커질 수 있었다 — 화면 표시 단위(만/억/조/경)로는 도저히 감당이 안 되는 규모. 주민과 똑같이
+  //   커질 수 있었다 — 화면 표시 단위(만/억/조/경)로는 도저히 감당이 안 되는 규모. 직원과 똑같이
   //   "만렙" 개념을 클릭에도 도입해서 maxLevel(150 = 최종 스테이지 진입 레벨)에서 더 이상 못
   //   올라가게 막았다. maxLevel 150으로 캡을 걸고도 최적 플레이 시뮬레이션으로 재검증한 결과
   //   79분 만에 목표금액 도달에 성공해서, 엔딩을 보는 데는 지장이 없는 것도 확인했다.)
@@ -59,7 +59,7 @@ const CONFIG = {
   },
 
   // 메인 캐릭터 Stage 전환 레벨 (클릭 레벨이 이 값에 도달하면 배경/캐릭터 변화)
-  // 새 클릭 성장률(1.10) 기준으로 재계산: 첫 주민(500원)을 살 수 있는 시점이 약 213클릭(레벨43)이라,
+  // 새 클릭 성장률(1.10) 기준으로 재계산: 첫 직원(500원)을 살 수 있는 시점이 약 213클릭(레벨43)이라,
   // Stage2 전환이 그보다 확실히 늦게 오도록 재조정했다.
   stageThresholds: [1, 50, 80, 110, 150], // Stage 1~5 시작 레벨
 
@@ -88,7 +88,7 @@ const CONFIG = {
   // 도박(돌림판) 설정
   // ※ 밸런스 5차 재조정 (버그: 기존 weight 조합의 배수 기댓값을 실제로 계산해보니 1.134
   //   (=113.4% 회수율)로, 스핀할 때마다 평균적으로 참가비의 13.4%를 순수 이득으로 얻는 구조였다.
-  //   이러면 "그냥 도박만 계속 돌리는 게 클릭/주민 관리보다 압도적으로 유리"해져 버려서, 다른
+  //   이러면 "그냥 도박만 계속 돌리는 게 클릭/직원 관리보다 압도적으로 유리"해져 버려서, 다른
   //   모든 밸런스 조정이 무의미해지는 심각한 문제였다. 실제 슬롯머신류 확률형 게임의 회수율
   //   (통상 90~97%, 기댓값<1)을 참고해서, 배수 라인업(×0.2~×5)은 그대로 두고 저배수(0.7/0.5/0.4)
   //   weight를 늘리고 고배수(2/3) weight를 줄여 기댓값을 0.959(회수율 95.9%)로 낮췄다 — "가끔 크게
@@ -97,9 +97,9 @@ const CONFIG = {
     spinCost: 10000, // 1회 참가 비용
 
     // 돌림판 배수 구간 (×0.2 ~ ×5). weight가 클수록 잘 나옴. (총합 1000 기준으로
-    // "정상우" 확률을 0.5%까지 정밀하게 표현한다.)
-    // 1배 / 0.7배를 가장 두텁게, 최저 확률(0.5%, "정상우")에 특수 이벤트를 건다.
-    // 정상우는 돈을 잃거나 얻지 않고(배수 적용 없이 참가비 그대로 돌려줌), 캐릭터만 전환된다.
+    // "캐릭터2" 확률을 0.5%까지 정밀하게 표현한다.)
+    // 1배 / 0.7배를 가장 두텁게, 최저 확률(0.5%, "캐릭터2")에 특수 이벤트를 건다.
+    // 캐릭터2는 돈을 잃거나 얻지 않고(배수 적용 없이 참가비 그대로 돌려줌), 캐릭터만 전환된다.
     segments: [
       { multiplier: 1,    weight: 280, label: "×1" },
       { multiplier: 0.7,  weight: 260, label: "×0.7" },
@@ -109,11 +109,11 @@ const CONFIG = {
       { multiplier: 0.4,  weight: 80,  label: "×0.4" },
       { multiplier: 3,    weight: 20,  label: "×3" },
       { multiplier: 5,    weight: 5,   label: "×5" },
-      { multiplier: 1,    weight: 5,   label: "???", isJackpotBad: true }, // 최저 확률(0.5%): 당첨 시 캐릭터가 "정상우의 빚"으로 전환, 돈은 그대로(원금 반환)
+      { multiplier: 1,    weight: 5,   label: "???", isJackpotBad: true }, // 최저 확률(0.5%): 당첨 시 캐릭터가 "캐릭터2 모드"로 전환, 돈은 그대로(원금 반환)
     ],
   },
 
-  // 주민 확인 화면의 5개 테마 (Phase 4에서 각 테마에 주민 3명씩 채울 예정)
+  // 직원 확인 화면의 5개 테마 (Phase 4에서 각 테마에 직원 3명씩 채울 예정)
   themes: [
     { id: "forest", icon: "🌳", name: "나무 테마" },
     { id: "farm",   icon: "🥕", name: "당근 테마" },
@@ -122,7 +122,7 @@ const CONFIG = {
     { id: "star",   icon: "⭐", name: "별 테마" },
   ],
 
-  // 주민 데이터 (Phase 4: 5개 테마 × 3명 = 15명 전체)
+  // 직원 데이터 (Phase 4: 5개 테마 × 3명 = 15명 전체)
   // 테마 안에서 3단계(입문/중급/고급)로, 테마 사이에서도 점점 비싸지도록 설계했다.
   //
   // ※ 밸런스 재설계 2차 (핵심 문제: 유니콘 만렙까지 총비용이 596억원으로 목표금액 178억원의
@@ -132,7 +132,7 @@ const CONFIG = {
   //     0.9배로 낮춰서, 유니콘 혼자 만렙까지 가는 총비용이 목표금액의 약 10.7%(19억원대)로
   //     충분히 감당 가능한 수준이 되도록 다시 계산했다. 15명 전체 총비용도 목표금액의
   //     21.5%뿐이라, 강화/고용에 다 쓰고도 자동생산만으로 목표금액을 채울 시간이 충분하다.
-  //   - 고용비/수익 모두 티어당 2.0배 상승 (첫 주민 500원 → 마지막 유니콘 819만원대)
+  //   - 고용비/수익 모두 티어당 2.0배 상승 (첫 직원 500원 → 마지막 유니콘 819만원대)
   //   - 강화(레벨)는 최대 30까지, 레벨당 수익/비용이 13%씩 상승
   //   - "15명 전원 고용+만렙 도달 ≈ 61분, 목표금액 도달 ≈ 68분"이 되도록 시뮬레이션으로 재검증했다.
   //   - 표시 끝자리가 지저분해지지 않도록 고용비/강화비는 10원~1만원 단위로 반올림했다
@@ -140,21 +140,21 @@ const CONFIG = {
   //
   // ※ 밸런스 3차 재조정: 쿠키클리커의 실제 공개 수치(첫 건물 "커서"는 초당 0.1개, 클릭 1회가
   //   1개인 것과 비교하면 첫 건물 생산량이 클릭 수익보다도 작다 — 그리고 건물 등급마다 기본
-  //   생산량이 대략 5~10배씩 뛴다)를 다시 참고해서 확인해보니, 이전 버전은 토끼(첫 주민)가
-  //   초당 5원으로 클릭 레벨1 수익(1원)보다 더 컸다. 첫 주민은 "클릭 수익과 비슷하거나 낮게"
+  //   생산량이 대략 5~10배씩 뛴다)를 다시 참고해서 확인해보니, 이전 버전은 토끼(첫 직원)가
+  //   초당 5원으로 클릭 레벨1 수익(1원)보다 더 컸다. 첫 직원은 "클릭 수익과 비슷하거나 낮게"
   //   시작해야 한다는 원칙에 맞게 초당 1원으로 낮추고, 티어당 배율도 수익 2.5배/고용비 2.2배로
   //   재조정했다. 유니콘 만렙까지 총비용도 목표금액의 5.65%로 넉넉하게 유지된다.
   //
   // ※ 밸런스 4차 재조정 (버그: "다람쥐를 왜 사니" 문제 — 토끼를 고용 후 딱 1레벨만 강화해도
-  //   (500원+450원=950원) 다람쥐 생고용(1100원)과 똑같이 초당 2원이 나와서, 새 주민을 사는
+  //   (500원+450원=950원) 다람쥐 생고용(1100원)과 똑같이 초당 2원이 나와서, 새 직원을 사는
   //   의미가 사라졌었다. 원인은 baseUpgradeCost가 hireCost의 0.9배로 너무 싸고, upgradeCostGrowth(1.13)도
   //   낮아서 "강화 1회의 비용 대비 수익증가 효율"이 "다음 티어 고용의 효율"보다 항상 더 좋았기 때문.
   //   → baseUpgradeCost를 hireCost의 2.0배로, upgradeCostGrowth를 1.15로 올려서, 강화를 시작하는
   //     순간부터는 항상 다음 티어를 고용하는 쪽이 돈 대비 효율이 더 좋도록 재계산했다(단, 강화 자체가
-  //     쓸모없어지진 않게 — 새 주민을 살 돈이 모이기 전까지 쓰는 "보조 수단"으로는 여전히 매력적이다).
+  //     쓸모없어지진 않게 — 새 직원을 살 돈이 모이기 전까지 쓰는 "보조 수단"으로는 여전히 매력적이다).
   //   15명 전체 총비용도 다시 검증해서 목표금액의 30.6%로, 자동생산 시간을 충분히 남기는 수준을 유지했다.
   //
-  // ※ 밸런스 5차 재조정 (버그: 클릭/주민/도박을 최적 순서로 플레이하는 시뮬레이션을 실제로 끝까지
+  // ※ 밸런스 5차 재조정 (버그: 클릭/직원/도박을 최적 순서로 플레이하는 시뮬레이션을 실제로 끝까지
   //   돌려보니, "목표금액 도달 ≈ 68분" 설계 의도와 다르게 클릭 업그레이드만으로 5분 만에 최종
   //   스테이지(Lv150)까지 뚫려버리고, 게임 전체도 15분 만에 끝나버렸다. 4차 조정에서 클릭 비용에
   //   하한선을 추가하며 "비용/수익 비율"만 맞추고 "레벨업 절대 속도"는 재검증하지 못했던 게 원인 —
@@ -163,15 +163,15 @@ const CONFIG = {
   //     가정)으로 재검증한 결과 "목표금액 도달 ≈ 66분"으로 원래 설계 의도에 다시 맞춘 것을 확인했다.
   // 이름/이모지는 임시로 붙여둔 것이라 나중에 쉽게 바꿀 수 있다.
   // 이미지 경로도 데이터로만 들고 있고, 실제 에셋이 준비되면 이 값만 교체하면 된다.
-  villagerMaxLevelBase: 30, // 주민 강화 최대 레벨의 "기준값"(첫 주민 토끼 기준). 맞다이 신청 실패로 빚이 늘어날 때마다 이 값도 함께 늘어난다(getVillagerMaxLevel 참고)
+  villagerMaxLevelBase: 30, // 직원 강화 최대 레벨의 "기준값"(첫 직원 토끼 기준). 맞다이 신청 실패로 빚이 늘어날 때마다 이 값도 함께 늘어난다(getVillagerMaxLevel 참고)
   villagerMaxLevelPerFail: 10, // 맞다이 신청 실패 1회당 상한이 늘어나는 레벨 수
 
-  // ※ 밸런스 7차 재조정: "모든 주민이 꼭 1초당 얻는 방식이어야 하는 건 아니다"는 요청에 따라,
+  // ※ 밸런스 7차 재조정: "모든 직원이 꼭 1초당 얻는 방식이어야 하는 건 아니다"는 요청에 따라,
   //   AdVenture Capitalist 같은 실제 방치형 게임을 참고해서 도입한 생산 주기 시스템. baseIncome
-  //   (1회 지급액)은 그대로 유지하고, 대신 "몇 초에 한 번 지급되는지"를 주민별 baseInterval로
-  //   따로 관리한다(getVillagerInterval 참고) — 즉 초반 주민(토끼)은 "8초당 1원"처럼 느리게
+  //   (1회 지급액)은 그대로 유지하고, 대신 "몇 초에 한 번 지급되는지"를 직원별 baseInterval로
+  //   따로 관리한다(getVillagerInterval 참고) — 즉 초반 직원(토끼)은 "8초당 1원"처럼 느리게
   //   시작해서 레벨이 오를수록 주기가 villagerIntervalDecay 배율로 점점 짧아지고,
-  //   villagerMinInterval(1초) 밑으로는 아무리 강화해도 더 짧아지지 않는다. 후반 주민(여우,
+  //   villagerMinInterval(1초) 밑으로는 아무리 강화해도 더 짧아지지 않는다. 후반 직원(여우,
   //   유니콘)은 티어 자체가 높아서 baseInterval을 처음부터 1초로 잡아, 이미 "매초 지급"으로
   //   시작한다. 소수점 지급액(0.2원 등)은 쓰지 않고 항상 정수만 지급한다.
   //   전체 최적 플레이 시뮬레이션으로 재검증한 결과 66.9분으로, 도입 전(65.9분)과 거의
@@ -180,15 +180,15 @@ const CONFIG = {
   villagerIntervalDecay: 0.90, // 레벨업 1회당 주기가 줄어드는 배율 (10%씩 단축)
   villagerMinInterval: 1, // 주기가 아무리 짧아져도 이 값(초) 밑으로는 내려가지 않는다
 
-  // 주민마다 기본 레벨 상한이 다르다 — 후반 주민일수록 상한이 낮아져서(첫 토끼 30 → 마지막
+  // 직원마다 기본 레벨 상한이 다르다 — 후반 직원일수록 상한이 낮아져서(첫 토끼 30 → 마지막
   // 유니콘 15) 만렙까지 강화하는 부담이 점점 줄어드는 구조. villagers 배열 순서와 1:1로 대응한다.
-  // (맞다이 신청 실패 시 늘어나는 보너스는 모든 주민에게 동일하게 +10씩 적용된다.)
+  // (맞다이 신청 실패 시 늘어나는 보너스는 모든 직원에게 동일하게 +10씩 적용된다.)
   villagerMaxLevelByIndex: [30, 29, 28, 27, 26, 25, 24, 22, 21, 20, 19, 18, 17, 16, 15],
 
-  // 주민별 캐릭터 모션(아직 미정이라 비워두고, 나중에 정해지면 여기만 채우면 된다).
+  // 직원별 캐릭터 모션(아직 미정이라 비워두고, 나중에 정해지면 여기만 채우면 된다).
   // 값은 CSS 클래스 이름(예: "motion-bounce", "motion-sway", "motion-float")을 넣으면
   // buildVillagerDom()이 자동으로 .villager-emoji / .villager-character-img에 붙여준다.
-  // 지정 안 된 주민은 모션 없이 정지 상태로 표시된다.
+  // 지정 안 된 직원은 모션 없이 정지 상태로 표시된다.
   villagerMotions: {
     // forest_01: "motion-bounce",
     // sea_01: "motion-sway",
@@ -204,92 +204,92 @@ const CONFIG = {
       check: (s) => s.money > 0 },
     { id: "click_lv10", name: "손가락 워밍업", desc: "클릭 레벨 10 달성", icon: "👆",
       check: (s) => s.clickLevel >= 10 },
-    { id: "first_hire", name: "첫 동료", desc: "첫 주민을 고용했어요", icon: "🏘️",
+    { id: "first_hire", name: "첫 동료", desc: "첫 직원을 고용했어요", icon: "🏘️",
       check: (s) => CONFIG.villagers.some((v) => s.villagers[v.id]?.hired) },
     { id: "first_gamble", name: "한 번 해볼까?", desc: "도박을 처음 해봤어요", icon: "🎰",
       check: (s) => s.gambleSpinCount > 0 },
-    { id: "forest_complete", name: "숲의 주인", desc: "나무 테마 주민 3명 모두 고용", icon: "🌳",
+    { id: "forest_complete", name: "숲의 주인", desc: "나무 테마 직원 3명 모두 고용", icon: "🌳",
       check: (s) => isThemeFullyHired("forest") },
     { id: "gamble_win_x3", name: "대박!", desc: "도박에서 ×3 이상 배수 당첨", icon: "💰",
       check: (s) => s.bestGambleMultiplier >= 3 },
-    { id: "farm_complete", name: "농장 경영자", desc: "당근 테마 주민 3명 모두 고용", icon: "🥕",
+    { id: "farm_complete", name: "농장 경영자", desc: "당근 테마 직원 3명 모두 고용", icon: "🥕",
       check: (s) => isThemeFullyHired("farm") },
-    { id: "debtor_encounter", name: "정상우와의 조우", desc: "도박에서 최저확률에 당첨됐어요", icon: "👻",
+    { id: "debtor_encounter", name: "캐릭터2와의 조우", desc: "도박에서 최저확률에 당첨됐어요", icon: "👻",
       check: (s) => s.debtorEncountered },
-    { id: "villager_lv30", name: "전문가", desc: "주민 1명을 만렙까지 강화", icon: "⭐",
+    { id: "villager_lv30", name: "전문가", desc: "직원 1명을 만렙까지 강화", icon: "⭐",
       // ※ 버그 수정: 원래는 level >= villagerMaxLevelBase(고정값 30)로 체크했는데, 실제로는
-      // 주민마다 만렙이 다 다르다(토끼 30 ~ 유니콘 15, villagerMaxLevelByIndex 참고) — 그래서
-      // 토끼를 제외한 14명은 만렙을 찍어도 이 업적을 절대 딸 수 없는 상태였다. "주민 1명을
-      // 만렙까지 강화"라는 설명 그대로, 각 주민의 실제 만렙(getVillagerMaxLevel)에 도달했는지로
+      // 직원마다 만렙이 다 다르다(토끼 30 ~ 유니콘 15, villagerMaxLevelByIndex 참고) — 그래서
+      // 토끼를 제외한 14명은 만렙을 찍어도 이 업적을 절대 딸 수 없는 상태였다. "직원 1명을
+      // 만렙까지 강화"라는 설명 그대로, 각 직원의 실제 만렙(getVillagerMaxLevel)에 도달했는지로
       // 체크하도록 고쳤다.
       check: (s) => CONFIG.villagers.some((v) => (s.villagers[v.id]?.level ?? 1) >= getVillagerMaxLevel(v.id)) },
-    { id: "sea_complete", name: "바다 탐험가", desc: "물고기 테마 주민 3명 모두 고용", icon: "🐟",
+    { id: "sea_complete", name: "바다 탐험가", desc: "물고기 테마 직원 3명 모두 고용", icon: "🐟",
       check: (s) => isThemeFullyHired("sea") },
     { id: "speed_x2", name: "가속 개시", desc: "배속 ×2를 해금했어요", icon: "⚡",
       check: (s) => getUnlockedSpeeds().includes(2) },
-    { id: "mine_complete", name: "광부의 자부심", desc: "광산 테마 주민 3명 모두 고용", icon: "⛏️",
+    { id: "mine_complete", name: "광부의 자부심", desc: "광산 테마 직원 3명 모두 고용", icon: "⛏️",
       check: (s) => isThemeFullyHired("mine") },
     { id: "speed_x3", name: "초가속", desc: "배속 ×3을 해금했어요", icon: "🚀",
       check: (s) => getUnlockedSpeeds().includes(3) },
-    { id: "all_hired", name: "마을 완성", desc: "15명 주민을 모두 고용했어요", icon: "🏆",
+    { id: "all_hired", name: "마을 완성", desc: "15명 직원을 모두 고용했어요", icon: "🏆",
       check: (s) => CONFIG.villagers.every((v) => s.villagers[v.id]?.hired) },
-    { id: "goal_complete", name: "빚 청산", desc: "목표 금액을 모두 모았어요", icon: "👑",
+    { id: "goal_complete", name: "목표 달성", desc: "목표 금액을 모두 모았어요", icon: "👑",
       check: (s) => s.money >= s.goalMoney },
   ],
 
   villagers: [
     // 🌳 나무 테마
-    { id: "forest_01", name: "토끼",   emoji: "🐰",  theme: "forest",
+    { id: "forest_01", name: "직원1",   emoji: "🐰",  theme: "forest",
       characterImage: "assets/villagers/forest_01.png", backgroundImage: "assets/background/forest_01.png",
       hireCost: 500,      baseIncome: 1,      incomeGrowth: 1.13, baseUpgradeCost: 1000,      upgradeCostGrowth: 1.15, baseInterval: 8 },
-    { id: "forest_02", name: "다람쥐", emoji: "🐿️", theme: "forest",
+    { id: "forest_02", name: "직원2", emoji: "🐿️", theme: "forest",
       characterImage: "assets/villagers/forest_02.png", backgroundImage: "assets/background/forest_02.png",
       hireCost: 1100,     baseIncome: 2,      incomeGrowth: 1.13, baseUpgradeCost: 2200,      upgradeCostGrowth: 1.15, baseInterval: 7 },
-    { id: "forest_03", name: "사슴",   emoji: "🦌",  theme: "forest",
+    { id: "forest_03", name: "직원3",   emoji: "🦌",  theme: "forest",
       characterImage: "assets/villagers/forest_03.png", backgroundImage: "assets/background/forest_03.png",
       hireCost: 2420,     baseIncome: 6,      incomeGrowth: 1.13, baseUpgradeCost: 4840,      upgradeCostGrowth: 1.15, baseInterval: 6 },
 
     // 🥕 당근 테마
-    { id: "farm_01", name: "병아리", emoji: "🐤", theme: "farm",
+    { id: "farm_01", name: "직원4", emoji: "🐤", theme: "farm",
       characterImage: "assets/villagers/farm_01.png", backgroundImage: "assets/background/farm_01.png",
       hireCost: 5320,     baseIncome: 16,     incomeGrowth: 1.13, baseUpgradeCost: 10640,     upgradeCostGrowth: 1.15, baseInterval: 6 },
-    { id: "farm_02", name: "돼지",   emoji: "🐷", theme: "farm",
+    { id: "farm_02", name: "직원5",   emoji: "🐷", theme: "farm",
       characterImage: "assets/villagers/farm_02.png", backgroundImage: "assets/background/farm_02.png",
       hireCost: 11700,    baseIncome: 39,     incomeGrowth: 1.13, baseUpgradeCost: 23400,     upgradeCostGrowth: 1.15, baseInterval: 5 },
-    { id: "farm_03", name: "양",     emoji: "🐑", theme: "farm",
+    { id: "farm_03", name: "직원6",     emoji: "🐑", theme: "farm",
       characterImage: "assets/villagers/farm_03.png", backgroundImage: "assets/background/farm_03.png",
       hireCost: 25800,    baseIncome: 98,     incomeGrowth: 1.13, baseUpgradeCost: 51600,     upgradeCostGrowth: 1.15, baseInterval: 5 },
 
     // 🐟 물고기 테마
-    { id: "sea_01", name: "물고기", emoji: "🐟", theme: "sea",
+    { id: "sea_01", name: "직원7", emoji: "🐟", theme: "sea",
       characterImage: "assets/villagers/sea_01.png", backgroundImage: "assets/background/sea_01.png",
       hireCost: 56700,    baseIncome: 244,    incomeGrowth: 1.13, baseUpgradeCost: 113400,    upgradeCostGrowth: 1.15, baseInterval: 4 },
-    { id: "sea_02", name: "문어",   emoji: "🐙", theme: "sea",
+    { id: "sea_02", name: "직원8",   emoji: "🐙", theme: "sea",
       characterImage: "assets/villagers/sea_02.png", backgroundImage: "assets/background/sea_02.png",
       hireCost: 124700,   baseIncome: 610,    incomeGrowth: 1.13, baseUpgradeCost: 249400,    upgradeCostGrowth: 1.15, baseInterval: 4 },
-    { id: "sea_03", name: "거북이", emoji: "🐢", theme: "sea",
+    { id: "sea_03", name: "직원9", emoji: "🐢", theme: "sea",
       characterImage: "assets/villagers/sea_03.png", backgroundImage: "assets/background/sea_03.png",
       hireCost: 274400,   baseIncome: 1526,   incomeGrowth: 1.13, baseUpgradeCost: 548800,    upgradeCostGrowth: 1.15, baseInterval: 3 },
 
     // ⛏️ 광산 테마
-    { id: "mine_01", name: "두더지", emoji: "🦫", theme: "mine",
+    { id: "mine_01", name: "직원10", emoji: "🦫", theme: "mine",
       characterImage: "assets/villagers/mine_01.png", backgroundImage: "assets/background/mine_01.png",
       hireCost: 603600,   baseIncome: 3815,   incomeGrowth: 1.13, baseUpgradeCost: 1207200,   upgradeCostGrowth: 1.15, baseInterval: 3 },
-    { id: "mine_02", name: "곰",     emoji: "🐻", theme: "mine",
+    { id: "mine_02", name: "직원11",     emoji: "🐻", theme: "mine",
       characterImage: "assets/villagers/mine_02.png", backgroundImage: "assets/background/mine_02.png",
       hireCost: 1328000,  baseIncome: 9537,   incomeGrowth: 1.13, baseUpgradeCost: 2656000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
-    { id: "mine_03", name: "고블린", emoji: "👺", theme: "mine",
+    { id: "mine_03", name: "직원12", emoji: "👺", theme: "mine",
       characterImage: "assets/villagers/mine_03.png", backgroundImage: "assets/background/mine_03.png",
       hireCost: 2922000,  baseIncome: 23842,  incomeGrowth: 1.13, baseUpgradeCost: 5844000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
 
     // ⭐ 별 테마
-    { id: "star_01", name: "올빼미",  emoji: "🦉", theme: "star",
+    { id: "star_01", name: "직원13",  emoji: "🦉", theme: "star",
       characterImage: "assets/villagers/star_01.png", backgroundImage: "assets/background/star_01.png",
       hireCost: 6428000,  baseIncome: 59605,  incomeGrowth: 1.13, baseUpgradeCost: 12856000,  upgradeCostGrowth: 1.15, baseInterval: 2 },
-    { id: "star_02", name: "여우",    emoji: "🦊", theme: "star",
+    { id: "star_02", name: "직원14",    emoji: "🦊", theme: "star",
       characterImage: "assets/villagers/star_02.png", backgroundImage: "assets/background/star_02.png",
       hireCost: 14141000, baseIncome: 149012, incomeGrowth: 1.13, baseUpgradeCost: 28282000,  upgradeCostGrowth: 1.15, baseInterval: 1 },
-    { id: "star_03", name: "유니콘",  emoji: "🦄", theme: "star",
+    { id: "star_03", name: "직원15",  emoji: "🦄", theme: "star",
       characterImage: "assets/villagers/star_03.png", backgroundImage: "assets/background/star_03.png",
       hireCost: 31109000, baseIncome: 372529, incomeGrowth: 1.13, baseUpgradeCost: 62218000,  upgradeCostGrowth: 1.15, baseInterval: 1 },
   ],
@@ -301,9 +301,9 @@ const CONFIG = {
 const state = {
   money: 0,
   clickLevel: 1,
-  isDebtorMode: false, // true면 메인 캐릭터가 "정상우의 빚" 모습, 목표 라벨도 전환됨
+  isDebtorMode: false, // true면 메인 캐릭터가 "캐릭터2" 모습, 목표 라벨도 전환됨
   isSpinning: false,
-  currentTheme: "forest", // 주민 확인 화면에 처음 진입 시 자동 선택되는 테마
+  currentTheme: "forest", // 직원 확인 화면에 처음 진입 시 자동 선택되는 테마
   speedLevel: 1, // 현재 선택된 배속 (1/2/3)
   hasSeenVictory: false, // 목표 금액 달성 축하 모달을 한 번 봤는지 (계속하기 후 매번 다시 뜨지 않도록)
 
@@ -311,21 +311,21 @@ const state = {
   achievements: {}, // achievementId → true (달성된 것만 기록)
   gambleSpinCount: 0, // 도박 총 스핀 횟수
   bestGambleMultiplier: 0, // 도박에서 뽑은 배수 중 최댓값
-  debtorEncountered: false, // 정상우 모드에 한 번이라도 진입한 적 있는지 (관리자 모드로 진입해도 인정)
+  debtorEncountered: false, // 캐릭터2 모드에 한 번이라도 진입한 적 있는지 (관리자 모드로 진입해도 인정)
 
-  // "맞다이 신청" 관련 상태. goalMoney는 CONFIG의 고정값이 아니라 여기서 관리하는 가변값이다
+  // "인생한방" 관련 상태. goalMoney는 CONFIG의 고정값이 아니라 여기서 관리하는 가변값이다
   // (실패해서 빚이 2배가 되면 이 값 자체가 늘어난다). fightChallengeFailCount만큼 다음 참가비도 커진다.
   goalMoney: CONFIG.goalMoney,
   fightChallengeFailCount: 0, // 맞다이 신청 실패 횟수 (참가비 계산에 쓰임)
 
-  // 주민별 진행 상태. villagerId → { hired, level }
-  // CONFIG.villagers를 기준으로 자동 생성 → 주민을 추가/삭제해도 여기를 따로 손볼 필요 없다.
+  // 직원별 진행 상태. villagerId → { hired, level }
+  // CONFIG.villagers를 기준으로 자동 생성 → 직원을 추가/삭제해도 여기를 따로 손볼 필요 없다.
   villagers: Object.fromEntries(
     CONFIG.villagers.map((v) => [v.id, { hired: false, level: 1 }])
   ),
 };
 
-// 주민별 "다음 지급까지 남은 초"를 추적하는 런타임 전용 타이머. 저장/불러오기 대상이 아니다
+// 직원별 "다음 지급까지 남은 초"를 추적하는 런타임 전용 타이머. 저장/불러오기 대상이 아니다
 // (게임을 다시 켰을 때 0부터 다시 세도 방치형 게임에서는 자연스럽고, 저장 파일 구조도 단순하게 유지된다).
 const villagerIncomeTimers = Object.fromEntries(CONFIG.villagers.map((v) => [v.id, 0]));
 
@@ -334,7 +334,7 @@ const villagerIncomeTimers = Object.fromEntries(CONFIG.villagers.map((v) => [v.i
    --------------------------------------------------------- */
 // 유저가 직접 설정하는 커스텀 데이터. 게임 진행(state)과는 독립적으로 localStorage에
 // 별도 저장한다 — 저장 슬롯을 초기화하거나 바꿔도 커스텀 이미지/이름은 유지되는 게 자연스럽다.
-// key: 주민 id 또는 "main"(메인 캐릭터) → { name, characterImage(dataURL), backgroundImage(dataURL),
+// key: 직원 id 또는 "main"(메인 캐릭터) → { name, characterImage(dataURL), backgroundImage(dataURL),
 //      debtorImage(dataURL, main 전용), debtorName(main 전용), motion, bubbleText }
 const CUSTOM_STORAGE_KEY = "village-clicker-custom-v1";
 
@@ -447,22 +447,22 @@ function getStage(level) {
   return stage;
 }
 
-// 주민 강화 최대 레벨. 주민마다 기본 상한이 다르고(villagerMaxLevelByIndex), 맞다이 신청에
-// 실패해서 빚이 불어날수록(state.fightChallengeFailCount만큼) 모든 주민에게 동일하게 보너스가 더해진다.
+// 직원 강화 최대 레벨. 직원마다 기본 상한이 다르고(villagerMaxLevelByIndex), 맞다이 신청에
+// 실패해서 빚이 불어날수록(state.fightChallengeFailCount만큼) 모든 직원에게 동일하게 보너스가 더해진다.
 function getVillagerMaxLevel(villagerId) {
   const index = CONFIG.villagers.findIndex((v) => v.id === villagerId);
   const base = index >= 0 ? CONFIG.villagerMaxLevelByIndex[index] : CONFIG.villagerMaxLevelBase;
   return base + state.fightChallengeFailCount * CONFIG.villagerMaxLevelPerFail;
 }
 
-// 주민 레벨 → 1회 지급액(더 이상 "초당"이 아니다 — 몇 초에 한 번 지급되는지는 getVillagerInterval이 따로 계산한다)
+// 직원 레벨 → 1회 지급액(더 이상 "초당"이 아니다 — 몇 초에 한 번 지급되는지는 getVillagerInterval이 따로 계산한다)
 // 클릭 수익과 동일한 이유로 "레벨당 최소 1씩 증가" 하한선을 둔다.
 function getVillagerIncome(villagerData, level) {
   const raw = Math.round(villagerData.baseIncome * Math.pow(villagerData.incomeGrowth, level - 1));
   return Math.max(raw, villagerData.baseIncome + (level - 1));
 }
 
-// 주민이 baseIncome을 "몇 초에 한 번" 지급하는지 계산한다. 레벨이 오를수록 villagerIntervalDecay
+// 직원이 baseIncome을 "몇 초에 한 번" 지급하는지 계산한다. 레벨이 오를수록 villagerIntervalDecay
 // 배율로 점점 짧아지고, villagerMinInterval(1초) 아래로는 더 줄어들지 않는다. 정수 초 단위로만
 // 표시/계산한다(반올림) — 화면에 "6.5초"처럼 어정쩡한 소수점이 보이지 않도록.
 function getVillagerInterval(villagerData, level) {
@@ -470,7 +470,7 @@ function getVillagerInterval(villagerData, level) {
   return Math.max(CONFIG.villagerMinInterval, Math.round(raw));
 }
 
-// 주민의 생산성을 화면에 표시할 문자열로 만든다. 주기가 1초면 기존과 같은 "X원/초"로,
+// 직원의 생산성을 화면에 표시할 문자열로 만든다. 주기가 1초면 기존과 같은 "X원/초"로,
 // 1초보다 길면 "N초당 X원"으로 표시한다 — "1초당 1원"처럼 어색한 표현 대신 자연스러운 쪽을 쓴다.
 function formatVillagerIncomeText(villagerData, level) {
   const income = getVillagerIncome(villagerData, level);
@@ -489,14 +489,14 @@ function roundToPrettyUnit(amount) {
   return Math.round(amount / 10000) * 10000;
 }
 
-// 주민 레벨 → 다음 레벨 강화 비용
+// 직원 레벨 → 다음 레벨 강화 비용
 function getVillagerUpgradeCost(villagerData, level) {
   const raw = Math.round(villagerData.baseUpgradeCost * Math.pow(villagerData.upgradeCostGrowth, level - 1));
   const withFloor = Math.max(raw, villagerData.baseUpgradeCost + (level - 1));
   return roundToPrettyUnit(withFloor);
 }
 
-// 고용된 모든 주민의 "초당 실효 생산량" 합계. 주민마다 지급 주기(getVillagerInterval)가
+// 고용된 모든 직원의 "초당 실효 생산량" 합계. 직원마다 지급 주기(getVillagerInterval)가
 // 다르므로, 단순히 1회 지급액을 더하면 안 되고 지급액을 주기(초)로 나눈 값을 더해야 한다
 // (예: 8초에 1원이면 초당 실효 수익은 0.125원). 화면 표시용으로만 쓰이며, 실제 지급 자체는
 // startPassiveIncomeLoop의 개별 타이머가 정수 단위로 처리한다.
@@ -508,7 +508,7 @@ function getTotalPassiveIncome() {
   }, 0);
 }
 
-// 특정 테마의 주민 3명이 전부 고용됐는지
+// 특정 테마의 직원 3명이 전부 고용됐는지
 function isThemeFullyHired(themeId) {
   return CONFIG.villagers
     .filter((v) => v.theme === themeId)
@@ -669,6 +669,7 @@ const el = {
 
   fightChallengeBtn: document.getElementById("fight-challenge-btn"),
   fightChallengeModal: document.getElementById("fight-challenge-modal"),
+  fightChallengeTitle: document.getElementById("fight-challenge-title"),
   fightChallengeCost: document.getElementById("fight-challenge-cost"),
   fightChallengeCancelBtn: document.getElementById("fight-challenge-cancel-btn"),
   fightChallengeConfirmBtn: document.getElementById("fight-challenge-confirm-btn"),
@@ -718,12 +719,12 @@ function renderClickPanel() {
 function renderStage() {
   const stage = getStage(state.clickLevel);
   el.mainStage.className = `stage-bg stage-${stage}`;
-  state.currentStage = stage; // 도박 결과(정상우 캐릭터)가 "지금 Stage"를 알 수 있도록 기록
+  state.currentStage = stage; // 도박 결과(캐릭터2 이미지)가 "지금 Stage"를 알 수 있도록 기록
   applyStageAssets(stage, state.isDebtorMode);
   renderFightChallengeButton();
 }
 
-// 정상우의 빚 모드 여부에 따라 캐릭터 모습 + 목표 라벨을 전환
+// 캐릭터2 모드(도박 최저확률 당첨) 여부에 따라 캐릭터 모습 + 관련 텍스트를 전환
 // "평소 캐릭터 그룹"(이미지 또는 실패 시 이모지 폴백)과 "도박 캐릭터 그룹"(이미지 또는 실패 시
 // 손그림 SVG 폴백)을 통째로 켜고 끈다. 그룹 안에서 이미지/폴백 중 뭐가 실제로 보이는지는 각
 // <img>의 onerror가 로드 성공 여부에 따라 독립적으로 관리하므로(index.html 참고) 여기서는
@@ -732,15 +733,15 @@ function renderDebtorMode() {
   el.charGroupNormal.hidden = state.isDebtorMode;
   el.charGroupDebtor.hidden = !state.isDebtorMode;
   const customMain = getCustomEntry("main");
-  const debtorGoalLabel = customMain.debtorName || "정상우";
-  const normalGoalLabel = customMain.name || "디디";
-  el.goalLabel.textContent = state.isDebtorMode ? `${debtorGoalLabel}의 빚` : `${normalGoalLabel}의 빚`;
+  const debtorGoalLabel = customMain.debtorName || "캐릭터2";
+  const normalGoalLabel = customMain.name || "캐릭터1";
+  el.goalLabel.textContent = "목표 금액"; // 캐릭터 이름과 무관하게 항상 고정 라벨
   el.mainStage.classList.toggle("debtor-mode", state.isDebtorMode); // 배경을 갈색 계열로 전환하는 트리거
   applyStageAssets(state.currentStage ?? getStage(state.clickLevel), state.isDebtorMode);
   renderFightChallengeButton();
 
-  // 상단 탭 메뉴 "디디"/카드 제목 "디디 강화"도 정상우 모드에선 "정상우"/"정상우 강화"로,
-  // 아이콘도 🌱(디디) <-> 🐟(정상우)로 함께 전환한다. 커스텀 이름이 있으면 그걸 우선 쓴다.
+  // 상단 탭 메뉴 "캐릭터1"/카드 제목 "캐릭터1 강화"도 캐릭터2 모드에선 "캐릭터2"/"캐릭터2 강화"로,
+  // 아이콘도 🌱(캐릭터1) <-> 🐟(캐릭터2)로 함께 전환한다. 커스텀 이름이 있으면 그걸 우선 쓴다.
   const label = state.isDebtorMode ? debtorGoalLabel : normalGoalLabel;
   const icon = state.isDebtorMode ? "🐟" : "🌱";
   if (el.clickTabIcon) el.clickTabIcon.textContent = icon;
@@ -755,7 +756,7 @@ function renderDebtorMode() {
 // 자동 대체된다. 각 <img>의 onerror가 로드 실패를 감지해서 스스로 숨고 폴백을 보여주는 역할을
 // 전담하므로(index.html 참고), 여기서는 "어떤 stage의 어떤 src를 시도할지"만 새로 세팅해주면
 // 된다 — src가 바뀌면 브라우저가 다시 로드를 시도하고, 성공/실패 여부에 따라 onerror가 알아서
-// hidden을 정리한다. 정상우 모드일 때도 "그 시점의 Stage와 같은 단계"의 debtor 이미지를 쓰도록
+// hidden을 정리한다. 캐릭터2 모드일 때도 "그 시점의 Stage와 같은 단계"의 debtor 이미지를 쓰도록
 // stage를 그대로 넘겨받는다.
 function applyStageAssets(stage, isDebtor) {
   const assets = CONFIG.stageAssets[stage - 1];
@@ -766,6 +767,7 @@ function applyStageAssets(stage, isDebtor) {
   const customMain = getCustomEntry("main");
   const normalSrc = customMain.characterImage || assets.normal;
   const debtorSrc = customMain.debtorImage || assets.debtor;
+  const bgSrc = customMain.backgroundImage || assets.background;
 
   // 평소 캐릭터: src가 실제로 바뀔 때만 다시 로드하도록 비교해서, 매 렌더링마다 불필요하게
   // 네트워크 요청이 반복되거나 onerror가 다시 실행되는 것을 막는다.
@@ -782,23 +784,23 @@ function applyStageAssets(stage, isDebtor) {
     el.charImgDebtor.src = debtorSrc;
   }
 
-  // 배경: src가 실제로 바뀔 때만 다시 로드. onerror가 로드 실패 시 hidden 처리해서
+  // 배경: 커스텀 배경이 있으면 그걸 우선 쓰고(Stage와 무관하게 고정), 없으면 기존 Stage별 배경을 쓴다.
+  // src가 실제로 바뀔 때만 다시 로드. onerror가 로드 실패 시 hidden 처리해서
   // #main-stage 자체의 그라디언트(.stage-bg.stage-N)가 자연스럽게 보이게 한다.
-  // 배경은 커스텀 대상이 아니다(메인 캐릭터 커스텀은 캐릭터 이미지/이름까지만).
-  if (assets.background && el.mainStageBgImg.dataset.stageSrc !== assets.background) {
-    el.mainStageBgImg.dataset.stageSrc = assets.background;
+  if (bgSrc && el.mainStageBgImg.dataset.stageSrc !== bgSrc) {
+    el.mainStageBgImg.dataset.stageSrc = bgSrc;
     el.mainStageBgImg.hidden = false;
-    el.mainStageBgImg.src = assets.background;
+    el.mainStageBgImg.src = bgSrc;
   }
 }
 
-// 돈이 바뀔 때마다 항상 함께 갱신돼야 하는 화면들 (금액 표시 + 클릭 패널 + 주민 고용/강화 버튼 상태 + 배속 해금 여부)
+// 돈이 바뀔 때마다 항상 함께 갱신돼야 하는 화면들 (금액 표시 + 클릭 패널 + 직원 고용/강화 버튼 상태 + 배속 해금 여부)
 // 이걸 개별 호출로 흩어두면 한 곳에서 빠뜨리기 쉬워 하나로 묶어 둔다.
 function renderEconomy() {
   renderMoney();
   renderClickPanel();
-  renderVillagers();
-  renderSpeedOptions(); // 주민 고용/레벨이 배속 해금 조건이라 돈이 바뀔 때마다 같이 확인
+  refreshHireButtonStates(); // 돈만 바뀐 경우 카드를 통째로 다시 그리지 않고 버튼 상태만 갱신(깜빡임 방지)
+  renderSpeedOptions(); // 직원 고용/레벨이 배속 해금 조건이라 돈이 바뀔 때마다 같이 확인
   checkAchievements(); // 상태가 바뀔 때마다 새로 달성된 업적이 있는지 확인
 }
 
@@ -877,8 +879,8 @@ function switchTab(tabName) {
 }
 
 /* ---------------------------------------------------------
-   8-0. 관리자 전용 히든 커맨드 (정상우 모드 테스트용 스위칭)
-   설정 탭 5번 → 주민 탭 3번 → 고용 탭 2번, 총 10번을 이 순서대로 연속으로 눌러야 발동한다.
+   8-0. 관리자 전용 히든 커맨드 (캐릭터2 모드 테스트용 스위칭)
+   설정 탭 5번 → 직원 탭 3번 → 고용 탭 2번, 총 10번을 이 순서대로 연속으로 눌러야 발동한다.
    중간에 다른 탭이 끼거나 순서/횟수가 어긋나면 그 시점부터 다시 처음부터 세기 시작한다.
    --------------------------------------------------------- */
 const ADMIN_SEQUENCE = ["settings", "settings", "settings", "settings", "settings", "villagers", "villagers", "villagers", "hire", "hire"];
@@ -907,7 +909,7 @@ function trackAdminSequence(tabName) {
   }
 }
 
-// 관리자 모드로 정상우/디디 상태를 강제로 전환한다. 실제 도박에서 최저확률(???)에 당첨된 것과
+// 관리자 모드로 캐릭터2/캐릭터1 상태를 강제로 전환한다. 실제 도박에서 최저확률(???)에 당첨된 것과
 // 동일하게 처리해서, 이후 다음 스핀에서 정상적으로 원래 상태로 복귀하는지도 테스트할 수 있게 한다.
 function toggleAdminDebtorMode() {
   state.isDebtorMode = !state.isDebtorMode;
@@ -915,7 +917,7 @@ function toggleAdminDebtorMode() {
   renderDebtorMode();
 
   // 어느 탭에 있든 항상 보이는 메인 캐릭터 영역(#popup-layer)에 안내를 띄운다.
-  spawnAdminNotice(state.isDebtorMode ? "🛠️ 관리자: 정상우 모드 ON" : "🛠️ 관리자: 정상우 모드 OFF");
+  spawnAdminNotice(state.isDebtorMode ? "🛠️ 관리자: 캐릭터2 모드 ON" : "🛠️ 관리자: 캐릭터2 모드 OFF");
 }
 
 // 관리자 전용 안내를 메인 캐릭터 영역 위에 잠깐 띄운다.
@@ -929,7 +931,7 @@ function spawnAdminNotice(message) {
 }
 
 /* ---------------------------------------------------------
-   8-1. 주민 확인 화면의 5개 테마 서브탭
+   8-1. 직원 확인 화면의 5개 테마 서브탭
    --------------------------------------------------------- */
 function switchTheme(themeId) {
   state.currentTheme = themeId;
@@ -943,7 +945,7 @@ function switchTheme(themeId) {
 }
 
 /* ---------------------------------------------------------
-   8-1-2. 주민 고용 화면의 5개 테마 서브탭 (한 테마를 모두 고용해야 다음이 열림)
+   8-1-2. 직원 고용 화면의 5개 테마 서브탭 (한 테마를 모두 고용해야 다음이 열림)
    --------------------------------------------------------- */
 let currentHireTheme = "forest";
 
@@ -971,11 +973,11 @@ function renderHireThemeTabs() {
 }
 
 /* ---------------------------------------------------------
-   8-2. 주민 시스템 (고용 / 강화 / 자동 생산)
+   8-2. 직원 시스템 (고용 / 강화 / 자동 생산)
    --------------------------------------------------------- */
 
-// "주민 확인" 화면 슬롯(이미지+잠금 표시만)의 DOM을 최초 1회 생성한다.
-// 실제 고용/강화 조작은 "주민 고용" 화면(테마별로 매번 다시 그림)에서만 한다.
+// "직원 확인" 화면 슬롯(이미지+잠금 표시만)의 DOM을 최초 1회 생성한다.
+// 실제 고용/강화 조작은 "직원 고용" 화면(테마별로 매번 다시 그림)에서만 한다.
 // (이미 생성된 슬롯이 있으면 건너뛰어 중복 생성을 막는다 — 재호출해도 안전하다.)
 function buildVillagerDom() {
   CONFIG.villagers.forEach((v) => {
@@ -989,7 +991,7 @@ function buildVillagerDom() {
   });
 }
 
-// 주민 슬롯 내부(.villager-visual)의 HTML을 커스텀 데이터를 반영해서 만든다.
+// 직원 슬롯 내부(.villager-visual)의 HTML을 커스텀 데이터를 반영해서 만든다.
 // buildVillagerDom(최초 생성)과 refreshVillagerSlot(커스텀 변경 후 갱신) 둘 다 이 함수를 공유한다.
 function buildVillagerVisualHtml(v) {
   const motionClass = getDisplayMotion(v.id);
@@ -1020,7 +1022,7 @@ function buildVillagerVisualHtml(v) {
     `;
 }
 
-// 커스텀 설정(이름/이미지/모션)이 바뀐 뒤, 이미 만들어져 있는 주민 슬롯의 내용을 다시 그린다.
+// 커스텀 설정(이름/이미지/모션)이 바뀐 뒤, 이미 만들어져 있는 직원 슬롯의 내용을 다시 그린다.
 // buildVillagerDom은 "최초 1회만" 생성하므로, 커스텀 변경을 화면에 반영하려면 이 함수가 필요하다.
 function refreshVillagerSlot(villagerId) {
   const v = CONFIG.villagers.find((x) => x.id === villagerId);
@@ -1031,7 +1033,7 @@ function refreshVillagerSlot(villagerId) {
   renderVillagers();
 }
 
-// 특정 주민의 캐릭터 위에 말풍선을 잠깐 띄운다. (예: 강화했을 때 "고마워요!" 같은 반응)
+// 특정 직원의 캐릭터 위에 말풍선을 잠깐 띄운다. (예: 강화했을 때 "고마워요!" 같은 반응)
 // durationMs 이후 자동으로 사라진다. content는 텍스트 또는 이모지 문자열.
 function showVillagerSpeechBubble(villagerId, content, durationMs = 2000) {
   const bubble = document.getElementById(`bubble-${villagerId}`);
@@ -1044,7 +1046,7 @@ function showVillagerSpeechBubble(villagerId, content, durationMs = 2000) {
   }, durationMs);
 }
 
-// 특정 주민의 배경 장식 레이어에 소품(나비, 반짝임 등)을 채운다.
+// 특정 직원의 배경 장식 레이어에 소품(나비, 반짝임 등)을 채운다.
 // items는 [{ emoji, className, style }] 형태 — className으로 CSS 애니메이션(위치·움직임)을 지정하고,
 // style로 각 소품의 시작 위치(top/left 등)를 개별 지정할 수 있다.
 function setVillagerBackgroundDecor(villagerId, items) {
@@ -1065,7 +1067,7 @@ function setMainBackgroundDecor(items) {
     .join("");
 }
 
-// "주민 고용" 화면: 현재 선택된 테마의 주민 3명 카드를 새로 그린다.
+// "직원 고용" 화면: 현재 선택된 테마의 직원 3명 카드를 새로 그린다.
 // 고용 전에는 고용 정보(비용/자동수익)만, 고용 후에는 레벨/강화 정보로 바뀐다.
 // (스펙: 고용 탭은 배경 이미지 없이 단색 배경 + 캐릭터만 — 배경은 여기서 다루지 않는다.)
 function hireVisualCharacterHtml(v) {
@@ -1092,7 +1094,7 @@ function renderHireThemeContent() {
       <div class="theme-locked-card">
         <span class="theme-locked-icon">🔒</span>
         <p class="theme-locked-title">아직 열리지 않은 지역이에요</p>
-        <p class="theme-locked-desc">${prevTheme.icon} ${prevTheme.name} 주민 3명을 모두 고용하면 열려요.</p>
+        <p class="theme-locked-desc">${prevTheme.icon} ${prevTheme.name} 직원 3명을 모두 고용하면 열려요.</p>
       </div>
     `;
     return;
@@ -1112,6 +1114,7 @@ function renderHireThemeContent() {
             <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
             <div class="hire-info">
               <h2 class="hire-name">${getDisplayName(v)}</h2>
+              <div class="hire-stat-row"><span>고용 비용</span><strong>${formatMoneyCompact(v.hireCost)}</strong></div>
               <div class="hire-stat-row"><span>자동 수익</span><strong>${formatVillagerIncomeText(v, 1)}</strong></div>
             </div>
             <button class="hire-btn" data-villager="${v.id}" ${state.money < v.hireCost ? "disabled" : ""}>고용하기</button>
@@ -1165,7 +1168,26 @@ function renderHireThemeContent() {
   });
 }
 
-// 주민 확인 화면(슬롯 잠금 상태)과 주민 고용 화면(테마탭 잠금/카드)을 함께 갱신
+// 돈이 바뀔 때마다(클릭 등) 고용/강화 카드를 통째로 다시 그리면, 카드 안의 이미지가 매번
+// 재생성되면서 화면이 깜빡이는 문제가 있었다 — 실제로는 버튼이 눌릴 수 있는지(disabled)만
+// 바뀌는 것이므로, 카드 구조는 그대로 두고 버튼 상태만 가볍게 갱신한다.
+function refreshHireButtonStates() {
+  if (!el.hireThemeContent) return;
+  el.hireThemeContent.querySelectorAll(".hire-btn[data-villager]").forEach((btn) => {
+    const v = CONFIG.villagers.find((x) => x.id === btn.dataset.villager);
+    if (v) btn.disabled = state.money < v.hireCost;
+  });
+  el.hireThemeContent.querySelectorAll(".villager-upgrade-btn[data-villager]").forEach((btn) => {
+    const v = CONFIG.villagers.find((x) => x.id === btn.dataset.villager);
+    const s = v && state.villagers[v.id];
+    if (!v || !s) return;
+    const isMaxLevel = s.level >= getVillagerMaxLevel(v.id);
+    const upgradeCost = isMaxLevel ? 0 : getVillagerUpgradeCost(v, s.level);
+    btn.disabled = isMaxLevel || state.money < upgradeCost;
+  });
+}
+
+// 직원 확인 화면(슬롯 잠금 상태)과 직원 고용 화면(테마탭 잠금/카드)을 함께 갱신
 function renderVillagers() {
   CONFIG.villagers.forEach((v) => {
     const s = state.villagers[v.id];
@@ -1198,6 +1220,8 @@ function handleHire(villagerId) {
   s.hired = true;
 
   renderEconomy();
+  renderHireThemeContent(); // 고용 성공 시 카드가 "고용하기" -> "레벨/강화" 구조로 바뀌어야 하므로 전체 재생성
+  renderVillagers(); // 직원 확인 화면 슬롯의 잠금 표시도 함께 갱신
 }
 
 function handleVillagerUpgrade(villagerId) {
@@ -1222,14 +1246,15 @@ function handleVillagerUpgrade(villagerId) {
   s.level += 1;
 
   renderEconomy();
+  renderHireThemeContent(); // 레벨/수익 숫자가 바뀌므로 카드 내용을 다시 그림
 }
 
-// 1초마다 모든 고용 주민의 생산 타이머를 진행시키고, 각자의 주기(getVillagerInterval)가
-// 다 찬 주민만 그 시점에 baseIncome을 지급한다 — 더 이상 "모든 주민이 매초 얻는" 방식이
-// 아니라, 주민마다 "몇 초에 한 번" 지급되는지가 다르다(밸런스 7차 재조정 참고).
+// 1초마다 모든 고용 직원의 생산 타이머를 진행시키고, 각자의 주기(getVillagerInterval)가
+// 다 찬 직원만 그 시점에 baseIncome을 지급한다 — 더 이상 "모든 직원이 매초 얻는" 방식이
+// 아니라, 직원마다 "몇 초에 한 번" 지급되는지가 다르다(밸런스 7차 재조정 참고).
 // 배속(state.speedLevel)은 "타이머가 매초 그만큼 더 빨리 흐르는 것"으로 반영한다 — 배속 3배면
 // 실제 1초마다 타이머가 3초치 진행되어, 주기가 사실상 1/3로 단축되는 효과를 낸다.
-// +금액 팝업은 "지금 실제로 주민 확인 화면을 보고 있을 때"만 띄운다 — 다른 탭에 있다가
+// +금액 팝업은 "지금 실제로 직원 확인 화면을 보고 있을 때"만 띄운다 — 다른 탭에 있다가
 // 돌아왔을 때 그동안 밀린 팝업이 한꺼번에 쏟아지지 않도록, 안 보는 동안은 애니메이션 없이
 // 총 금액에만 조용히 더해지고 돌아오면 그 시점부터 다시 팝업이 보인다.
 function startPassiveIncomeLoop() {
@@ -1277,7 +1302,7 @@ const totalWeight = gambleSegments.reduce((sum, seg) => sum + seg.weight, 0);
 
 // 돌림판 배경(conic-gradient)과 각 구간의 라벨을 미리 계산해둔다.
 const wheelLayout = (() => {
-  // 조각이 서로 잘 구분되도록 8가지 색을 순환시키고, 정상우의 빚(최저확률)만 어두운 회색으로 고정
+  // 조각이 서로 잘 구분되도록 8가지 색을 순환시키고, 캐릭터2(최저확률)만 어두운 회색으로 고정
   const colors = ["#F6C6CE", "#B9DE9E", "#A3D0EA", "#F3C98C", "#C7ACE6", "#F3AEB9", "#EFD9A8", "#9FC9E6"];
   let acc = 0;
   return gambleSegments.map((seg, i) => {
@@ -1397,9 +1422,9 @@ function resolveGambleResult(segment, cost) {
     state.debtorEncountered = true;
   }
 
-  // 정상우의 빚 상태는 "그 상태를 만든 최저확률(0.5%, ???)이 다시 나오기 전까지" 유지된다.
+  // 캐릭터2 상태는 "그 상태를 만든 최저확률(0.5%, ???)이 다시 나오기 전까지" 유지된다.
   // 즉 일반 배수가 나온다고 원래대로 돌아가는 게 아니라, 오직 ???가 다시 당첨됐을 때만 토글된다
-  // (정상우 상태에서 ??? 당첨 → 원래대로 복귀 / 원래 상태에서 ??? 당첨 → 정상우로 전환).
+  // (캐릭터2 상태에서 ??? 당첨 → 원래대로 복귀 / 원래 상태에서 ??? 당첨 → 캐릭터2로 전환).
   const wasDebtor = state.isDebtorMode;
   if (segment.isJackpotBad) {
     state.isDebtorMode = !state.isDebtorMode;
@@ -1412,12 +1437,12 @@ function resolveGambleResult(segment, cost) {
   let message, resultClass;
   if (segment.isJackpotBad) {
     // 배수를 적용하지 않고(위 reward가 이미 cost와 동일) 캐릭터만 전환한다 — 돈은 잃지 않는다.
-    // wasDebtor 기준으로 "방금 정상우가 됐는지" "방금 원래대로 돌아왔는지"를 구분해서 안내한다.
+    // wasDebtor 기준으로 "방금 캐릭터2가 됐는지" "방금 원래대로 돌아왔는지"를 구분해서 안내한다.
     message = wasDebtor ? "??? 원래대로 돌아왔어요!" : "??? 무언가 나타났습니다...";
     resultClass = "jackpot-bad";
   } else if (wasDebtor) {
-    // 정상우 상태는 그대로 유지된 채 일반 배수만 당첨된 경우
-    message = `${segment.label}... +${formatMoneyCompact(reward)} (정상우 모드 유지 중)`;
+    // 캐릭터2 상태는 그대로 유지된 채 일반 배수만 당첨된 경우
+    message = `${segment.label}... +${formatMoneyCompact(reward)} (캐릭터2 모드 유지 중)`;
     resultClass = segment.multiplier >= 1 ? "win" : "lose";
   } else if (segment.multiplier >= 1) {
     message = `${segment.label} 당첨! +${formatMoneyCompact(reward)}`;
@@ -1468,7 +1493,7 @@ function renderSpeedOptions() {
 
   if (el.speedHint) {
     if (unlocked.length < CONFIG.speeds.length) {
-      el.speedHint.textContent = "×2는 모든 주민 고용, ×3은 모든 주민 Lv.15 달성 시 열려요.";
+      el.speedHint.textContent = "×2는 모든 직원 고용, ×3은 모든 직원 Lv.15 달성 시 열려요.";
     } else {
       el.speedHint.textContent = "모든 배속이 열렸어요!";
     }
@@ -1527,7 +1552,7 @@ function applySavedState(saved) {
   state.goalMoney = saved.goalMoney ?? CONFIG.goalMoney;
   state.fightChallengeFailCount = saved.fightChallengeFailCount ?? 0;
 
-  // 저장 시점 이후 CONFIG에 주민이 추가됐을 수 있으니, 저장된 값이 있는 주민만 덮어쓰고 나머지는 기본값 유지
+  // 저장 시점 이후 CONFIG에 직원이 추가됐을 수 있으니, 저장된 값이 있는 직원만 덮어쓰고 나머지는 기본값 유지
   CONFIG.villagers.forEach((v) => {
     if (saved.villagers && saved.villagers[v.id]) {
       state.villagers[v.id] = {
@@ -1614,6 +1639,7 @@ function handleLoadSlot(slotIndex) {
   if (!saved) return;
   applySavedState(saved);
   renderAll();
+  renderHireThemeContent(); // 불러온 직원 고용/레벨 상태를 카드 구조에 강제로 반영
 }
 
 /* ---------------------------------------------------------
@@ -1640,6 +1666,7 @@ function resetGame() {
     state.villagers[v.id] = { hired: false, level: 1 };
   });
   renderAll();
+  renderHireThemeContent(); // 초기화로 고용 상태가 전부 리셋됐으니 카드 구조도 강제로 다시 그림
   switchTab("click");
   switchTheme("forest");
 }
@@ -1744,7 +1771,7 @@ function closeAchievementModal() {
 }
 
 /* ---------------------------------------------------------
-   12-3. "맞다이 신청" (정상우 모드 + Stage 5 전용 하이리스크 이벤트)
+   12-3. "인생한방" (캐릭터2 모드 + Stage 5 전용 하이리스크 이벤트)
    --------------------------------------------------------- */
 
 // 지금 참가비 계산: 실패할 때마다 baseCost가 2배씩 뛴다.
@@ -1752,7 +1779,7 @@ function getFightChallengeCost() {
   return CONFIG.fightChallenge.baseCost * Math.pow(CONFIG.fightChallenge.costMultiplierOnFail, state.fightChallengeFailCount);
 }
 
-// 버튼은 "정상우 모드 + Stage 5"일 때만 보인다.
+// 버튼은 "캐릭터2 모드 + Stage 5"일 때만 보인다.
 function renderFightChallengeButton() {
   if (!el.fightChallengeBtn) return;
   const isStage5 = (state.currentStage ?? getStage(state.clickLevel)) === 5;
@@ -1762,6 +1789,8 @@ function renderFightChallengeButton() {
 
 function openFightChallengeModal() {
   const cost = getFightChallengeCost();
+  const debtorName = getCustomEntry("main").debtorName || "캐릭터2";
+  if (el.fightChallengeTitle) el.fightChallengeTitle.textContent = "인생한방에 도전할까요?";
   el.fightChallengeCost.textContent = formatMoneyCompact(cost);
   el.fightChallengeModal.hidden = false;
 }
@@ -1794,6 +1823,7 @@ function handleFightChallengeConfirm() {
   }
 
   renderAll();
+  renderHireThemeContent(); // 목표 금액 변화로 직원 만렙 상한도 바뀌므로 "MAX" 표시를 다시 계산
   showFightResultModal(success);
 }
 
@@ -1801,12 +1831,12 @@ function showFightResultModal(success) {
   el.fightResultModalBox.classList.toggle("result-fail", !success);
   if (success) {
     el.fightResultEmoji.textContent = "🎉";
-    el.fightResultTitle.textContent = "승리했어요!";
-    el.fightResultDesc.textContent = "정상우를 이기고 빚을 모두 청산했어요!";
+    el.fightResultTitle.textContent = "성공했어요!";
+    el.fightResultDesc.textContent = "인생한방으로 목표 금액을 모두 채웠어요!";
   } else {
     el.fightResultEmoji.textContent = "💥";
-    el.fightResultTitle.textContent = "패배했어요...";
-    el.fightResultDesc.textContent = `빚이 2배로 늘어났어요. 남은 빚: ${formatMoneyCompact(Math.max(0, state.goalMoney - state.money))}`;
+    el.fightResultTitle.textContent = "실패했어요...";
+    el.fightResultDesc.textContent = `목표 금액이 2배로 늘어났어요. 남은 금액: ${formatMoneyCompact(Math.max(0, state.goalMoney - state.money))}`;
   }
   el.fightResultModal.hidden = false;
 }
@@ -1817,7 +1847,7 @@ function closeFightResultModal() {
 /* ---------------------------------------------------------
    12-1. 캐릭터 커스텀 (이름/이미지/모션/말풍선)
    --------------------------------------------------------- */
-let currentCustomEditId = null; // 지금 편집 모달에서 다루고 있는 대상 id ("main" 또는 주민 id)
+let currentCustomEditId = null; // 지금 편집 모달에서 다루고 있는 대상 id ("main" 또는 직원 id)
 
 // 이미지 파일을 base64 dataURL로 변환한다. 너무 큰 파일은 localStorage 용량(보통 5~10MB)을
 // 금방 채우므로, 일정 크기 이상이면 캔버스로 리사이즈해서 용량을 줄인다.
@@ -1856,11 +1886,11 @@ function fileToResizedDataUrl(file) {
   });
 }
 
-// 설정 탭의 "캐릭터 커스텀" 목록(메인 캐릭터 + 주민 15명)을 그린다.
+// 설정 탭의 "캐릭터 커스텀" 목록(메인 캐릭터 + 직원 15명)을 그린다.
 function renderCustomTargetList() {
   if (!el.customTargetList) return;
   const targets = [
-    { id: "main", label: "🌱 디디 / 정상우 (메인 캐릭터)" },
+    { id: "main", label: "🌱 캐릭터1 / 캐릭터2 (메인 캐릭터)" },
     ...CONFIG.villagers.map((v) => ({ id: v.id, label: `${v.emoji} ${getDisplayName(v)}` })),
   ];
   el.customTargetList.innerHTML = targets
@@ -1874,8 +1904,8 @@ function renderCustomTargetList() {
   });
 }
 
-// 커스텀 편집 모달을 연다. id가 "main"이면 메인 캐릭터용(배경/모션/말풍선 필드 숨김, 정상우
-// 이미지/이름 필드 보임), 그 외에는 주민용(배경/모션/말풍선 보임, 정상우 필드 숨김) 레이아웃으로 전환한다.
+// 커스텀 편집 모달을 연다. id가 "main"이면 메인 캐릭터용(모션/말풍선 필드 숨김, 배경/캐릭터2
+// 이미지/이름 필드 보임), 그 외에는 직원용(배경/모션/말풍선 보임, 캐릭터2 필드 숨김) 레이아웃으로 전환한다.
 function openCustomEditModal(id) {
   currentCustomEditId = id;
   const isMain = id === "main";
@@ -1883,22 +1913,22 @@ function openCustomEditModal(id) {
 
   el.customEditError.hidden = true;
   el.customEditTitle.textContent = isMain
-    ? "디디 / 정상우 커스텀"
+    ? "캐릭터1 / 캐릭터2 커스텀"
     : `${CONFIG.villagers.find((v) => v.id === id)?.name ?? ""} 커스텀`;
 
   el.customEditName.value = custom.name || "";
-  el.customEditName.placeholder = isMain ? "디디 (기본 이름 사용)" : "기본 이름 사용";
+  el.customEditName.placeholder = isMain ? "캐릭터1 (기본 이름 사용)" : "기본 이름 사용";
 
   el.customEditCharPreview.src = custom.characterImage || "";
   el.customEditCharPreview.hidden = !custom.characterImage;
   el.customEditCharFile.value = "";
 
-  el.customEditBgField.hidden = isMain; // 메인 캐릭터는 배경을 별도로 커스텀하지 않음
+  // 메인 캐릭터도 배경을 커스텀할 수 있다 — 캐릭터 뒤에 깔릴 배경 이미지를 별도로 지정
   el.customEditBgPreview.src = custom.backgroundImage || "";
   el.customEditBgPreview.hidden = !custom.backgroundImage;
   el.customEditBgFile.value = "";
 
-  el.customEditDebtorField.hidden = !isMain; // 정상우 이미지는 메인 캐릭터 전용
+  el.customEditDebtorField.hidden = !isMain; // 캐릭터2 이미지는 메인 캐릭터 전용
   el.customEditDebtorPreview.src = custom.debtorImage || "";
   el.customEditDebtorPreview.hidden = !custom.debtorImage;
   el.customEditDebtorFile.value = "";
@@ -1910,7 +1940,7 @@ function openCustomEditModal(id) {
   el.customEditMotion.parentElement.hidden = isMain; // 메인 캐릭터는 클릭 애니메이션이 이미 고정이라 모션 커스텀 대상에서 제외
 
   el.customEditBubble.value = custom.bubbleText || "";
-  el.customEditBubble.parentElement.hidden = isMain; // 말풍선은 주민 전용 기능
+  el.customEditBubble.parentElement.hidden = isMain; // 말풍선은 직원 전용 기능
 
   el.customEditModal.hidden = false;
 }
@@ -1934,8 +1964,8 @@ function applyCustomEditChange(field, value) {
   if (currentCustomEditId === "main") {
     renderDebtorMode(); // 메인 캐릭터 이름/이미지 갱신
   } else {
-    refreshVillagerSlot(currentCustomEditId); // 주민 확인 화면 슬롯 갱신
-    renderHireThemeContent(); // 주민 고용 화면 카드도 이름/이미지가 바뀌었을 수 있으니 갱신
+    refreshVillagerSlot(currentCustomEditId); // 직원 확인 화면 슬롯 갱신
+    renderHireThemeContent(); // 직원 고용 화면 카드도 이름/이미지가 바뀌었을 수 있으니 갱신
   }
 }
 
@@ -1988,7 +2018,7 @@ function importCustomData(file) {
         window.alert("저장 공간이 부족해서 가져오기에 실패했어요.");
         return;
       }
-      // 이미 만들어진 주민 슬롯들을 전부 새로 그려서 가져온 커스텀이 즉시 반영되게 한다.
+      // 이미 만들어진 직원 슬롯들을 전부 새로 그려서 가져온 커스텀이 즉시 반영되게 한다.
       CONFIG.villagers.forEach((v) => refreshVillagerSlot(v.id));
       renderDebtorMode();
       renderHireThemeContent();
@@ -2138,12 +2168,13 @@ function init() {
   }
   if (el.customEditCloseBtn) el.customEditCloseBtn.addEventListener("click", closeCustomEditModal);
 
-  buildVillagerDom(); // "주민 확인" 화면의 15명 슬롯(이미지+잠금표시) DOM 생성
+  buildVillagerDom(); // "직원 확인" 화면의 15명 슬롯(이미지+잠금표시) DOM 생성
 
   buildWheelBackground();
-  renderHireThemeTabs(); // "주민 고용" 화면 초기 테마탭 렌더
+  renderHireThemeTabs(); // "직원 고용" 화면 초기 테마탭 렌더
   renderCustomTargetList(); // "설정 > 캐릭터 커스텀" 목록 초기 렌더
   renderAll();
+  renderHireThemeContent(); // 고용 화면 카드는 renderEconomy의 가벼운 갱신 대상이 아니므로 최초 1회 명시적으로 그림
   startPassiveIncomeLoop();
 }
 

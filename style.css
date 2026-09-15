@@ -131,6 +131,9 @@ html, body {
 .money-popup::before {
   content: "🪙";
   font-size: 16px;
+  /* 부모(.money-popup)가 한글 표시용 커스텀 폰트(Jua 등)를 쓰는데, 그 폰트엔 이모지 글리프가
+     없어서 이모지가 깨진 네모(□)로 보이는 문제가 있었다 — 이모지 전용 폰트로 별도 지정해서 해결. */
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
 
 @keyframes popup-float {
@@ -167,6 +170,7 @@ html, body {
   position: relative;
   z-index: 2;
   margin-bottom: 6%;
+  height: 55%; /* max-height만으로는 %fit 기준이 불안정할 수 있어 명시적으로 고정 (이미지 하단 잘림 방지) */
   max-height: 55%; /* 스테이지가 작아져도 goal-panel과 겹치지 않게 항상 비례해서 줄어들도록 */
   max-width: 60%; /* 가로 폭도 함께 제한해서, 세로만 줄고 가로는 못 따라가는 일이 없게 함 */
   display: flex;
@@ -192,9 +196,9 @@ html, body {
   100% { transform: scale(1) rotate(0deg); }
 }
 
-/* 캐릭터 두 벌(평소 / 정상우의 빚)을 같은 자리에 겹쳐두고 하나만 보이게 전환.
+/* 캐릭터 두 벌(캐릭터1 / 캐릭터2)을 같은 자리에 겹쳐두고 하나만 보이게 전환.
    각 그룹(.char-group) 안에는 이미지 <img>와 그 폴백(이모지 span 또는 SVG)이 함께 들어있고,
-   이미지 로드 성공/실패에 따라 둘 중 하나만 보이도록 onerror가 관리한다(index.html 참고). */
+   이미지 로드 성공/실패에 따라 둘 중 하나만 보이도록 onerror/onload가 관리한다(index.html 참고). */
 .char-group {
   display: flex;
   align-items: center;
@@ -1613,6 +1617,12 @@ html, body {
   font-size: 13px;
   color: var(--ink);
   margin-bottom: 6px;
+}
+.custom-edit-size-hint {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin: -3px 0 8px;
+  line-height: 1.4;
 }
 .custom-edit-field input[type="text"],
 .custom-edit-field textarea,
