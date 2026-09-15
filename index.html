@@ -213,6 +213,18 @@
       </div>
 
       <div class="settings-card">
+        <h2 class="settings-title">🎨 캐릭터 커스텀</h2>
+        <p class="settings-hint">이름, 이미지, 움직임을 원하는 대로 바꿔보세요.</p>
+        <div id="custom-target-list" class="custom-target-list"></div>
+        <div class="custom-io-row">
+          <button id="custom-export-btn" class="settings-btn">📤 내보내기</button>
+          <button id="custom-import-btn" class="settings-btn">📥 가져오기</button>
+          <input type="file" id="custom-import-file" accept="application/json" hidden />
+        </div>
+        <p class="settings-hint">내보낸 파일을 다른 기기/브라우저에서 가져오면 커스텀 설정이 그대로 옮겨져요.</p>
+      </div>
+
+      <div class="settings-card">
         <h2 class="settings-title">💾 저장</h2>
         <div id="save-slots" class="save-slots"></div>
       </div>
@@ -273,6 +285,62 @@
     <div id="achievement-list" class="achievement-list"></div>
     <div class="modal-actions">
       <button id="achievement-close-btn" class="modal-btn modal-btn-cancel">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 캐릭터 커스텀 편집 모달: 이름/이미지/모션/말풍선을 한 대상(주민 1명 또는 메인 캐릭터)에 대해 편집 -->
+<div id="custom-edit-modal" class="modal-overlay" hidden>
+  <div class="modal-box custom-edit-modal-box">
+    <p class="modal-title" id="custom-edit-title">커스텀 편집</p>
+
+    <div class="custom-edit-field">
+      <label for="custom-edit-name">이름</label>
+      <input type="text" id="custom-edit-name" maxlength="12" placeholder="기본 이름 사용" />
+    </div>
+
+    <div class="custom-edit-field">
+      <label for="custom-edit-char-file">캐릭터 이미지</label>
+      <div class="custom-edit-image-row">
+        <img id="custom-edit-char-preview" class="custom-edit-preview" alt="미리보기" hidden />
+        <input type="file" id="custom-edit-char-file" accept="image/*" />
+        <button id="custom-edit-char-clear" class="settings-btn settings-btn-small">기본으로</button>
+      </div>
+    </div>
+
+    <div class="custom-edit-field" id="custom-edit-bg-field">
+      <label for="custom-edit-bg-file">배경 이미지</label>
+      <div class="custom-edit-image-row">
+        <img id="custom-edit-bg-preview" class="custom-edit-preview" alt="미리보기" hidden />
+        <input type="file" id="custom-edit-bg-file" accept="image/*" />
+        <button id="custom-edit-bg-clear" class="settings-btn settings-btn-small">기본으로</button>
+      </div>
+    </div>
+
+    <div class="custom-edit-field" id="custom-edit-debtor-field" hidden>
+      <label for="custom-edit-debtor-file">정상우 모습 이미지</label>
+      <div class="custom-edit-image-row">
+        <img id="custom-edit-debtor-preview" class="custom-edit-preview" alt="미리보기" hidden />
+        <input type="file" id="custom-edit-debtor-file" accept="image/*" />
+        <button id="custom-edit-debtor-clear" class="settings-btn settings-btn-small">기본으로</button>
+      </div>
+    </div>
+
+    <div class="custom-edit-field">
+      <label for="custom-edit-motion">움직임</label>
+      <select id="custom-edit-motion"></select>
+    </div>
+
+    <div class="custom-edit-field">
+      <label for="custom-edit-bubble">말풍선 문구 (한 줄에 하나씩, 랜덤으로 표시돼요)</label>
+      <textarea id="custom-edit-bubble" rows="3" maxlength="200" placeholder="예: 오늘도 화이팅!&#10;고마워요!"></textarea>
+    </div>
+
+    <p class="settings-hint" id="custom-edit-error" hidden></p>
+
+    <div class="modal-actions">
+      <button id="custom-edit-reset-btn" class="modal-btn modal-btn-danger">전체 초기화</button>
+      <button id="custom-edit-close-btn" class="modal-btn modal-btn-primary">완료</button>
     </div>
   </div>
 </div>
