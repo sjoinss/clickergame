@@ -345,6 +345,7 @@ const CUSTOM_MOTIONS = [
   { id: "motion-float", label: "천천히 떠다니기" },
   { id: "motion-walk", label: "좌우로 걸어다니기" },
   { id: "motion-spin", label: "제자리 회전" },
+  { id: "motion-flip", label: "제자리에서 뒤집기" },
   { id: "motion-pulse", label: "커졌다 작아지기" },
   { id: "motion-shake", label: "빠르게 흔들기" },
   { id: "motion-wiggle", label: "꿈틀거리기" },
@@ -396,6 +397,13 @@ function getDisplayCharacterImage(villagerData) {
   return getCustomEntry(villagerData.id).characterImage || villagerData.characterImage;
 }
 
+// 표시용 이모지: 커스텀 이모지가 있으면 그걸, 없으면 기본 이모지.
+// 캐릭터 이미지를 등록해도 이름표(.villager-name-badge) 등에는 여전히 "동물 이모지"가 남기 쉬우므로,
+// 이모지 자체도 별도로 바꿀 수 있게 한다.
+function getDisplayEmoji(villagerData) {
+  return getCustomEntry(villagerData.id).emoji || villagerData.emoji;
+}
+
 // 표시용 배경 이미지
 function getDisplayBackgroundImage(villagerData) {
   return getCustomEntry(villagerData.id).backgroundImage || villagerData.backgroundImage;
@@ -413,6 +421,13 @@ function getCustomBubbleLines(id) {
   const custom = getCustomEntry(id);
   if (!custom.bubbleText) return [];
   return custom.bubbleText.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+// 테마(나무/당근/물고기/광산/별)를 분류하는 아이콘도 커스텀 가능하다.
+// 커스텀 데이터의 key는 "theme-<themeId>"로 관리해서 직원/메인 캐릭터 id와 겹치지 않게 한다.
+// (편집 모달의 이모지 입력란은 직원과 동일하게 "emoji" 필드를 쓴다 — 필드명을 통일해서 헷갈리지 않게.)
+function getDisplayThemeIcon(theme) {
+  return getCustomEntry(`theme-${theme.id}`).emoji || theme.icon;
 }
 
 /* ---------------------------------------------------------
@@ -649,7 +664,11 @@ const el = {
   customImportFile: document.getElementById("custom-import-file"),
   customEditModal: document.getElementById("custom-edit-modal"),
   customEditTitle: document.getElementById("custom-edit-title"),
+  customEditEmojiField: document.getElementById("custom-edit-emoji-field"),
+  customEditEmoji: document.getElementById("custom-edit-emoji"),
+  customEditNameField: document.getElementById("custom-edit-name-field"),
   customEditName: document.getElementById("custom-edit-name"),
+  customEditCharField: document.getElementById("custom-edit-char-field"),
   customEditCharPreview: document.getElementById("custom-edit-char-preview"),
   customEditCharFile: document.getElementById("custom-edit-char-file"),
   customEditCharClear: document.getElementById("custom-edit-char-clear"),
@@ -661,7 +680,9 @@ const el = {
   customEditDebtorPreview: document.getElementById("custom-edit-debtor-preview"),
   customEditDebtorFile: document.getElementById("custom-edit-debtor-file"),
   customEditDebtorClear: document.getElementById("custom-edit-debtor-clear"),
+  customEditMotionField: document.getElementById("custom-edit-motion-field"),
   customEditMotion: document.getElementById("custom-edit-motion"),
+  customEditBubbleField: document.getElementById("custom-edit-bubble-field"),
   customEditBubble: document.getElementById("custom-edit-bubble"),
   customEditError: document.getElementById("custom-edit-error"),
   customEditResetBtn: document.getElementById("custom-edit-reset-btn"),
@@ -944,6 +965,15 @@ function switchTheme(themeId) {
   });
 }
 
+// 직원 확인 화면의 테마 서브탭 아이콘을 커스텀 값(getDisplayThemeIcon)으로 갱신한다.
+// 초기 HTML에는 기본 이모지가 하드코딩돼 있으므로, 커스텀이 설정된 경우에만 텍스트를 덮어쓴다.
+function renderThemeButtons() {
+  el.themeButtons.forEach((btn) => {
+    const theme = CONFIG.themes.find((t) => t.id === btn.dataset.theme);
+    if (theme) btn.textContent = getDisplayThemeIcon(theme);
+  });
+}
+
 /* ---------------------------------------------------------
    8-1-2. 직원 고용 화면의 5개 테마 서브탭 (한 테마를 모두 고용해야 다음이 열림)
    --------------------------------------------------------- */
@@ -963,7 +993,7 @@ function renderHireThemeTabs() {
       const unlocked = isThemeUnlocked(t.id);
       const active = t.id === currentHireTheme;
       return `<button class="theme-btn${active ? " active" : ""}${unlocked ? "" : " locked"}"
-        data-hire-theme="${t.id}" ${unlocked ? "" : "disabled"}>${t.icon}${unlocked ? "" : '<span class="theme-lock-badge">🔒</span>'}</button>`;
+        data-hire-theme="${t.id}" ${unlocked ? "" : "disabled"}>${getDisplayThemeIcon(t)}${unlocked ? "" : '<span class="theme-lock-badge">🔒</span>'}</button>`;
     })
     .join("");
 
@@ -996,6 +1026,7 @@ function buildVillagerDom() {
 function buildVillagerVisualHtml(v) {
   const motionClass = getDisplayMotion(v.id);
   const displayName = getDisplayName(v);
+  const displayEmoji = getDisplayEmoji(v);
   const charImage = getDisplayCharacterImage(v);
   const bgImage = getDisplayBackgroundImage(v);
   // 배경/캐릭터 이미지는 있으면 <img>가 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
@@ -1011,9 +1042,9 @@ function buildVillagerVisualHtml(v) {
         ${bgImgTag}
         <div class="bg-decor" id="bg-decor-${v.id}"></div>
         ${charImgTag}
-        <span class="villager-emoji ${motionClass}" ${charImgTag ? "hidden" : ""}>${v.emoji}</span>
+        <span class="villager-emoji ${motionClass}" ${charImgTag ? "hidden" : ""}>${displayEmoji}</span>
         <div class="villager-speech-bubble" id="bubble-${v.id}" hidden></div>
-        <div class="villager-name-badge">${v.emoji} ${displayName}</div>
+        <div class="villager-name-badge">${displayEmoji} ${displayName}</div>
         <div class="villager-lock-overlay" id="lock-${v.id}">
           <span class="lock-icon">🔒</span>
           <span class="lock-text">아직 고용되지 않음</span>
@@ -1075,11 +1106,12 @@ function hireVisualCharacterHtml(v) {
   // 옆의 이모지(.hire-emoji)가 그대로 보인다.
   const charImage = getDisplayCharacterImage(v);
   const displayName = getDisplayName(v);
-  if (!charImage) return `<span class="hire-emoji">${v.emoji}</span>`;
+  const displayEmoji = getDisplayEmoji(v);
+  if (!charImage) return `<span class="hire-emoji">${displayEmoji}</span>`;
   return `
     <img class="hire-character-img" src="${charImage}" alt="${displayName}"
          onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
-    <span class="hire-emoji" hidden>${v.emoji}</span>
+    <span class="hire-emoji" hidden>${displayEmoji}</span>
   `;
 }
 
@@ -1094,7 +1126,7 @@ function renderHireThemeContent() {
       <div class="theme-locked-card">
         <span class="theme-locked-icon">🔒</span>
         <p class="theme-locked-title">아직 열리지 않은 지역이에요</p>
-        <p class="theme-locked-desc">${prevTheme.icon} ${prevTheme.name} 직원 3명을 모두 고용하면 열려요.</p>
+        <p class="theme-locked-desc">${getDisplayThemeIcon(prevTheme)} ${prevTheme.name} 직원 3명을 모두 고용하면 열려요.</p>
       </div>
     `;
     return;
@@ -1247,6 +1279,14 @@ function handleVillagerUpgrade(villagerId) {
 
   renderEconomy();
   renderHireThemeContent(); // 레벨/수익 숫자가 바뀌므로 카드 내용을 다시 그림
+
+  // 커스텀 말풍선 문구가 등록돼 있으면, 강화할 때마다 그중 하나를 랜덤으로 잠깐 띄운다.
+  // (직원 확인 화면을 보고 있지 않으면 슬롯 자체가 안 보이니 티가 안 나지만, 데이터는 항상 갱신해둔다.)
+  const bubbleLines = getCustomBubbleLines(villagerId);
+  if (bubbleLines.length > 0) {
+    const line = bubbleLines[Math.floor(Math.random() * bubbleLines.length)];
+    showVillagerSpeechBubble(villagerId, line);
+  }
 }
 
 // 1초마다 모든 고용 직원의 생산 타이머를 진행시키고, 각자의 주기(getVillagerInterval)가
@@ -1290,6 +1330,22 @@ function startPassiveIncomeLoop() {
     if (totalIncome > 0) {
       state.money += totalIncome;
       renderEconomy();
+    }
+
+    // 직원 확인 화면을 보고 있을 때, 말풍선 문구가 등록된 고용 직원 중 하나를 가끔 랜덤으로
+    // 골라 말풍선을 띄운다. 강화할 때만 뜨면 놓치기 쉬우므로, 화면을 보는 동안 자연스럽게
+    // 계속 확인할 수 있게 한다(매초 8% 확률 = 평균 12.5초에 한 번 정도).
+    if (isViewingVillagers && Math.random() < 0.08) {
+      const candidates = CONFIG.villagers.filter((v) => {
+        const s = state.villagers[v.id];
+        return s?.hired && getCustomBubbleLines(v.id).length > 0;
+      });
+      if (candidates.length > 0) {
+        const picked = candidates[Math.floor(Math.random() * candidates.length)];
+        const lines = getCustomBubbleLines(picked.id);
+        const line = lines[Math.floor(Math.random() * lines.length)];
+        showVillagerSpeechBubble(picked.id, line);
+      }
     }
   }, 1000);
 }
@@ -1886,12 +1942,13 @@ function fileToResizedDataUrl(file) {
   });
 }
 
-// 설정 탭의 "캐릭터 커스텀" 목록(메인 캐릭터 + 직원 15명)을 그린다.
+// 설정 탭의 "캐릭터 커스텀" 목록(메인 캐릭터 + 직원 15명 + 테마 5개)을 그린다.
 function renderCustomTargetList() {
   if (!el.customTargetList) return;
   const targets = [
     { id: "main", label: "🌱 캐릭터1 / 캐릭터2 (메인 캐릭터)" },
-    ...CONFIG.villagers.map((v) => ({ id: v.id, label: `${v.emoji} ${getDisplayName(v)}` })),
+    ...CONFIG.villagers.map((v) => ({ id: v.id, label: `${getDisplayEmoji(v)} ${getDisplayName(v)}` })),
+    ...CONFIG.themes.map((t) => ({ id: `theme-${t.id}`, label: `${getDisplayThemeIcon(t)} ${t.name} 아이콘` })),
   ];
   el.customTargetList.innerHTML = targets
     .map((t) => {
@@ -1904,26 +1961,46 @@ function renderCustomTargetList() {
   });
 }
 
-// 커스텀 편집 모달을 연다. id가 "main"이면 메인 캐릭터용(모션/말풍선 필드 숨김, 배경/캐릭터2
-// 이미지/이름 필드 보임), 그 외에는 직원용(배경/모션/말풍선 보임, 캐릭터2 필드 숨김) 레이아웃으로 전환한다.
+// 커스텀 편집 모달을 연다. 대상은 세 종류다:
+// - "main": 메인 캐릭터 (이름/캐릭터·배경·캐릭터2 이미지 보임, 모션/말풍선/이모지 숨김)
+// - "theme-<themeId>": 테마 분류 아이콘 (이모지 필드만 보이고 나머지는 전부 숨김)
+// - 그 외(직원 id): 이름/이모지/캐릭터·배경 이미지/모션/말풍선 전부 보임 (캐릭터2 필드만 숨김)
 function openCustomEditModal(id) {
   currentCustomEditId = id;
   const isMain = id === "main";
+  const isTheme = id.startsWith("theme-");
   const custom = getCustomEntry(id);
 
   el.customEditError.hidden = true;
-  el.customEditTitle.textContent = isMain
-    ? "캐릭터1 / 캐릭터2 커스텀"
-    : `${CONFIG.villagers.find((v) => v.id === id)?.name ?? ""} 커스텀`;
 
+  if (isTheme) {
+    const themeId = id.replace("theme-", "");
+    const theme = CONFIG.themes.find((t) => t.id === themeId);
+    el.customEditTitle.textContent = `${theme?.name ?? ""} 아이콘 커스텀`;
+  } else {
+    el.customEditTitle.textContent = isMain
+      ? "캐릭터1 / 캐릭터2 커스텀"
+      : `${CONFIG.villagers.find((v) => v.id === id)?.name ?? ""} 커스텀`;
+  }
+
+  // 이모지 필드: 테마와 직원만 해당(메인 캐릭터는 이미지 위주라 이모지 커스텀 대상에서 제외)
+  el.customEditEmojiField.hidden = isMain;
+  el.customEditEmoji.value = custom.emoji || "";
+  el.customEditEmoji.placeholder = "기본 이모지 사용";
+
+  // 이름 필드: 테마에는 이름이 없음
+  el.customEditNameField.hidden = isTheme;
   el.customEditName.value = custom.name || "";
   el.customEditName.placeholder = isMain ? "캐릭터1 (기본 이름 사용)" : "기본 이름 사용";
 
+  // 캐릭터 이미지: 테마는 이미지가 아니라 이모지만 다루므로 숨김
+  el.customEditCharField.hidden = isTheme;
   el.customEditCharPreview.src = custom.characterImage || "";
   el.customEditCharPreview.hidden = !custom.characterImage;
   el.customEditCharFile.value = "";
 
-  // 메인 캐릭터도 배경을 커스텀할 수 있다 — 캐릭터 뒤에 깔릴 배경 이미지를 별도로 지정
+  // 배경 이미지: 테마는 대상 아님. 메인 캐릭터도 배경을 커스텀할 수 있다.
+  el.customEditBgField.hidden = isTheme;
   el.customEditBgPreview.src = custom.backgroundImage || "";
   el.customEditBgPreview.hidden = !custom.backgroundImage;
   el.customEditBgFile.value = "";
@@ -1937,10 +2014,10 @@ function openCustomEditModal(id) {
     (m) => `<option value="${m.id}">${m.label}</option>`
   ).join("");
   el.customEditMotion.value = custom.motion || "";
-  el.customEditMotion.parentElement.hidden = isMain; // 메인 캐릭터는 클릭 애니메이션이 이미 고정이라 모션 커스텀 대상에서 제외
+  el.customEditMotionField.hidden = isMain || isTheme; // 메인/테마는 모션 커스텀 대상 아님
 
   el.customEditBubble.value = custom.bubbleText || "";
-  el.customEditBubble.parentElement.hidden = isMain; // 말풍선은 직원 전용 기능
+  el.customEditBubbleField.hidden = isMain || isTheme; // 말풍선은 직원 전용 기능
 
   el.customEditModal.hidden = false;
 }
@@ -1963,6 +2040,11 @@ function applyCustomEditChange(field, value) {
   el.customEditError.hidden = true;
   if (currentCustomEditId === "main") {
     renderDebtorMode(); // 메인 캐릭터 이름/이미지 갱신
+  } else if (currentCustomEditId.startsWith("theme-")) {
+    // 테마 아이콘은 직원 고용 화면의 테마탭과 직원 확인 화면의 테마탭 둘 다에 쓰인다
+    renderHireThemeTabs();
+    renderHireThemeContent(); // "아직 열리지 않은 지역" 안내 문구에도 테마 아이콘이 들어가므로 함께 갱신
+    renderThemeButtons(); // 직원 확인 화면의 테마 서브탭 아이콘 갱신
   } else {
     refreshVillagerSlot(currentCustomEditId); // 직원 확인 화면 슬롯 갱신
     renderHireThemeContent(); // 직원 고용 화면 카드도 이름/이미지가 바뀌었을 수 있으니 갱신
@@ -2120,6 +2202,9 @@ function init() {
       el.customImportFile.value = "";
     });
   }
+  if (el.customEditEmoji) {
+    el.customEditEmoji.addEventListener("input", () => applyCustomEditChange("emoji", el.customEditEmoji.value.trim()));
+  }
   if (el.customEditName) {
     el.customEditName.addEventListener("input", () => applyCustomEditChange("name", el.customEditName.value.trim()));
   }
@@ -2172,6 +2257,7 @@ function init() {
 
   buildWheelBackground();
   renderHireThemeTabs(); // "직원 고용" 화면 초기 테마탭 렌더
+  renderThemeButtons(); // "직원 확인" 화면 테마 서브탭 아이콘 커스텀 반영
   renderCustomTargetList(); // "설정 > 캐릭터 커스텀" 목록 초기 렌더
   renderAll();
   renderHireThemeContent(); // 고용 화면 카드는 renderEconomy의 가벼운 갱신 대상이 아니므로 최초 1회 명시적으로 그림
