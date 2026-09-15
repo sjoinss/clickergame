@@ -292,17 +292,23 @@
   </div>
 </div>
 
-<!-- 캐릭터 커스텀 편집 모달: 이름/이미지/모션/말풍선을 한 대상(직원 1명 또는 메인 캐릭터)에 대해 편집 -->
+<!-- 캐릭터 커스텀 편집 모달: 이름/이미지/모션/말풍선을 한 대상(직원 1명, 메인 캐릭터, 또는 테마)에 대해 편집 -->
 <div id="custom-edit-modal" class="modal-overlay" hidden>
   <div class="modal-box custom-edit-modal-box">
     <p class="modal-title" id="custom-edit-title">커스텀 편집</p>
 
-    <div class="custom-edit-field">
+    <div class="custom-edit-field" id="custom-edit-emoji-field">
+      <label for="custom-edit-emoji">이모지</label>
+      <p class="custom-edit-size-hint">이모지 1개만 입력해주세요 (예: 🐰)</p>
+      <input type="text" id="custom-edit-emoji" maxlength="4" placeholder="기본 이모지 사용" />
+    </div>
+
+    <div class="custom-edit-field" id="custom-edit-name-field">
       <label for="custom-edit-name">이름</label>
       <input type="text" id="custom-edit-name" maxlength="12" placeholder="기본 이름 사용" />
     </div>
 
-    <div class="custom-edit-field">
+    <div class="custom-edit-field" id="custom-edit-char-field">
       <label for="custom-edit-char-file">캐릭터 이미지</label>
       <p class="custom-edit-size-hint">정사각형 비율 권장 (예: 512×512px), 배경 투명한 PNG가 잘 어울려요</p>
       <div class="custom-edit-image-row">
@@ -332,12 +338,12 @@
       </div>
     </div>
 
-    <div class="custom-edit-field">
+    <div class="custom-edit-field" id="custom-edit-motion-field">
       <label for="custom-edit-motion">움직임</label>
       <select id="custom-edit-motion"></select>
     </div>
 
-    <div class="custom-edit-field">
+    <div class="custom-edit-field" id="custom-edit-bubble-field">
       <label for="custom-edit-bubble">말풍선 문구 (한 줄에 하나씩, 랜덤으로 표시돼요)</label>
       <p class="custom-edit-size-hint">한 줄당 최대 20자까지 자연스럽게 보여요</p>
       <textarea id="custom-edit-bubble" rows="3" maxlength="200" placeholder="예: 오늘도 화이팅!&#10;고마워요!"></textarea>
