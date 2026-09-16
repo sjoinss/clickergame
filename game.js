@@ -252,7 +252,7 @@ const CONFIG = {
       hireCost: 274400,   baseIncome: 1526,   incomeGrowth: 1.13, baseUpgradeCost: 548800,    upgradeCostGrowth: 1.15, baseInterval: 3 },
 
     // ⛏️ 광산 테마
-    { id: "mine_01", name: "직원10", emoji: "🦫", theme: "mine",
+    { id: "mine_01", name: "직원10", emoji: "🐹", theme: "mine", // 🦫(비버)는 비교적 최신 이모지라 기기별로 깨져 보여서 오래되고 지원 잘 되는 이모지로 교체
       hireCost: 603600,   baseIncome: 3815,   incomeGrowth: 1.13, baseUpgradeCost: 1207200,   upgradeCostGrowth: 1.15, baseInterval: 3 },
     { id: "mine_02", name: "직원11",     emoji: "🐻", theme: "mine",
       hireCost: 1328000,  baseIncome: 9537,   incomeGrowth: 1.13, baseUpgradeCost: 2656000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
@@ -859,12 +859,22 @@ function renderAll() {
 /* ---------------------------------------------------------
    6. +금액 팝업 애니메이션
    --------------------------------------------------------- */
+// 🪙 이모지 대신 쓰는 동전 아이콘. 이모지 폰트 유무에 좌우되지 않도록 SVG로 직접 그린다 —
+// 안의 "₩"는 이모지가 아니라 아주 오래된 기본 문자라 어떤 환경에서도 항상 똑같이 보인다.
+const MONEY_POPUP_COIN_SVG = `
+  <svg class="money-popup-coin" viewBox="0 0 32 32" aria-hidden="true">
+    <circle cx="16" cy="16" r="14" fill="#F0B93E" stroke="#C97B1E" stroke-width="2"/>
+    <circle cx="16" cy="16" r="10" fill="none" stroke="#fff" stroke-width="1.5" opacity="0.5"/>
+    <text x="16" y="21" font-size="13" font-weight="bold" fill="#8A5A12" text-anchor="middle">₩</text>
+  </svg>
+`;
+
 // containerEl 내부(자신의 좌표계)에 +금액 팝업을 띄운다.
 // containerEl은 CSS에서 position: relative/absolute로 기준점 역할을 해야 한다.
 function spawnMoneyPopup(amount, containerEl) {
   const popup = document.createElement("div");
   popup.className = "money-popup";
-  popup.textContent = `+${formatMoneyCompact(amount).replace("원", "")}`;
+  popup.innerHTML = `${MONEY_POPUP_COIN_SVG}<span>+${formatMoneyCompact(amount).replace("원", "")}</span>`;
 
   const offsetX = (Math.random() - 0.5) * 60;
   popup.style.left = `calc(50% + ${offsetX}px)`;
@@ -2429,6 +2439,30 @@ function init() {
   renderAll();
   renderHireThemeContent(); // 고용 화면 카드는 renderEconomy의 가벼운 갱신 대상이 아니므로 최초 1회 명시적으로 그림
   startPassiveIncomeLoop();
+  setupBasicDeterrents();
+}
+
+// 우클릭 메뉴/개발자도구 단축키를 막는다 — 소스나 업로드한 이미지를 그냥 긁어가는 걸 "귀찮게"
+// 만드는 수준의 장치일 뿐이다. 브라우저 메뉴로 개발자도구를 열거나 다른 브라우저를 쓰면 전부
+// 우회되므로, 마음먹고 코드를 보려는 사람을 실제로 막지는 못한다(클라이언트 코드는 원천적으로
+// 완전히 숨길 방법이 없다) — 그 점을 이해한 상태에서 쓰는 가벼운 저지선으로만 남겨둔다.
+function setupBasicDeterrents() {
+  document.addEventListener("contextmenu", (e) => e.preventDefault());
+  document.addEventListener("keydown", (e) => {
+    const key = e.key.toUpperCase();
+    const isDevToolsCombo =
+      key === "F12" ||
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && ["I", "J", "C"].includes(key)) || // 개발자도구/콘솔/요소선택
+      ((e.ctrlKey || e.metaKey) && key === "U"); // 페이지 소스 보기
+    if (isDevToolsCombo) e.preventDefault();
+  });
+  // 흔한 "자기 자신 XSS" 사기(콘솔에 코드를 붙여넣게 유도) 예방 겸, 소스를 그냥 열어보는 사람에게
+  // 남기는 안내 문구.
+  console.log("%c잠깐!", "color:#C93A5F; font-size:32px; font-weight:bold;");
+  console.log(
+    "%c이 콘솔은 개발자용입니다. 누군가 여기에 코드를 붙여넣으라고 시켰다면 대부분 사기예요.",
+    "font-size:14px;"
+  );
 }
 
 init();
