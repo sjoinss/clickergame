@@ -1769,7 +1769,10 @@ function handleLoadSlot(slotIndex) {
   if (!saved) return;
   applySavedState(saved);
   renderAll();
-  renderHireThemeContent(); // 불러온 직원 고용/레벨 상태를 카드 구조에 강제로 반영
+  // 불러온 직원 고용/레벨 상태를 "고용" 탭 카드 구조와 "직원" 탭 슬롯 잠금 표시에 함께 강제 반영
+  // (renderHireThemeContent()만 부르면 "직원" 탭의 slot-${id} unlocked 클래스가 갱신되지 않아,
+  // 고용해서 저장한 직원도 불러오기 후 "직원" 탭에서는 계속 미고용으로 보이는 문제가 있었다)
+  renderVillagers();
 }
 
 /* ---------------------------------------------------------
@@ -1796,7 +1799,7 @@ function resetGame() {
     state.villagers[v.id] = { hired: false, level: 1 };
   });
   renderAll();
-  renderHireThemeContent(); // 초기화로 고용 상태가 전부 리셋됐으니 카드 구조도 강제로 다시 그림
+  renderVillagers(); // 초기화로 고용 상태가 전부 리셋됐으니 "고용"/"직원" 탭 카드·슬롯 표시도 강제로 다시 그림
   switchTab("click");
   switchTheme("forest");
 }
