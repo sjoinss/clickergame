@@ -63,17 +63,6 @@ const CONFIG = {
   // Stage2 전환이 그보다 확실히 늦게 오도록 재조정했다.
   stageThresholds: [1, 50, 80, 110, 150], // Stage 1~5 시작 레벨
 
-  // Stage별 이미지 경로. 실제 파일이 준비되면 이 값만 채우면 된다(비어있으면 기존 단색 배경/PNG로 대체).
-  // normal: 평소 메인 캐릭터, debtor: 도박 최저확률 당첨 시 캐릭터, background: 메인 배경.
-  // debtor 이미지는 "그 시점의 Stage와 같은 단계"를 써야 한다(예: Stage 2 상태에서 당첨되면 debtor도 Stage 2 이미지).
-  stageAssets: [
-    { normal: "assets/character/main_stage1.png", debtor: "assets/character/debtor_stage1.png", background: "assets/background/main_stage1.png" },
-    { normal: "assets/character/main_stage2.png", debtor: "assets/character/debtor_stage2.png", background: "assets/background/main_stage2.png" },
-    { normal: "assets/character/main_stage3.png", debtor: "assets/character/debtor_stage3.png", background: "assets/background/main_stage3.png" },
-    { normal: "assets/character/main_stage4.png", debtor: "assets/character/debtor_stage4.png", background: "assets/background/main_stage4.png" },
-    { normal: "assets/character/main_stage5.png", debtor: "assets/character/debtor_stage5.png", background: "assets/background/main_stage5.png" },
-  ],
-
   // 배속 설정: ×1은 기본, ×2/×3은 해금 조건을 만족해야 선택 가능
   // 해금 조건은 checkUnlocked(state)가 매번 계산 — 저장값이 아니라 항상 현재 상태 기준으로 판단한다.
   speeds: [
@@ -115,11 +104,11 @@ const CONFIG = {
 
   // 직원 확인 화면의 5개 테마 (Phase 4에서 각 테마에 직원 3명씩 채울 예정)
   themes: [
-    { id: "forest", icon: "🌳", name: "나무 테마" },
-    { id: "farm",   icon: "🥕", name: "당근 테마" },
-    { id: "sea",    icon: "🐟", name: "물고기 테마" },
-    { id: "mine",   icon: "⛏️", name: "광산 테마" },
-    { id: "star",   icon: "⭐", name: "별 테마" },
+    { id: "forest", icon: "🌳", name: "테마1" },
+    { id: "farm",   icon: "🥕", name: "테마2" },
+    { id: "sea",    icon: "🐟", name: "테마3" },
+    { id: "mine",   icon: "⛏️", name: "테마4" },
+    { id: "star",   icon: "⭐", name: "테마5" },
   ],
 
   // 직원 데이터 (Phase 4: 5개 테마 × 3명 = 15명 전체)
@@ -240,57 +229,42 @@ const CONFIG = {
   villagers: [
     // 🌳 나무 테마
     { id: "forest_01", name: "직원1",   emoji: "🐰",  theme: "forest",
-      characterImage: "assets/villagers/forest_01.png", backgroundImage: "assets/background/forest_01.png",
       hireCost: 500,      baseIncome: 1,      incomeGrowth: 1.13, baseUpgradeCost: 1000,      upgradeCostGrowth: 1.15, baseInterval: 8 },
     { id: "forest_02", name: "직원2", emoji: "🐿️", theme: "forest",
-      characterImage: "assets/villagers/forest_02.png", backgroundImage: "assets/background/forest_02.png",
       hireCost: 1100,     baseIncome: 2,      incomeGrowth: 1.13, baseUpgradeCost: 2200,      upgradeCostGrowth: 1.15, baseInterval: 7 },
     { id: "forest_03", name: "직원3",   emoji: "🦌",  theme: "forest",
-      characterImage: "assets/villagers/forest_03.png", backgroundImage: "assets/background/forest_03.png",
       hireCost: 2420,     baseIncome: 6,      incomeGrowth: 1.13, baseUpgradeCost: 4840,      upgradeCostGrowth: 1.15, baseInterval: 6 },
 
     // 🥕 당근 테마
     { id: "farm_01", name: "직원4", emoji: "🐤", theme: "farm",
-      characterImage: "assets/villagers/farm_01.png", backgroundImage: "assets/background/farm_01.png",
       hireCost: 5320,     baseIncome: 16,     incomeGrowth: 1.13, baseUpgradeCost: 10640,     upgradeCostGrowth: 1.15, baseInterval: 6 },
     { id: "farm_02", name: "직원5",   emoji: "🐷", theme: "farm",
-      characterImage: "assets/villagers/farm_02.png", backgroundImage: "assets/background/farm_02.png",
       hireCost: 11700,    baseIncome: 39,     incomeGrowth: 1.13, baseUpgradeCost: 23400,     upgradeCostGrowth: 1.15, baseInterval: 5 },
     { id: "farm_03", name: "직원6",     emoji: "🐑", theme: "farm",
-      characterImage: "assets/villagers/farm_03.png", backgroundImage: "assets/background/farm_03.png",
       hireCost: 25800,    baseIncome: 98,     incomeGrowth: 1.13, baseUpgradeCost: 51600,     upgradeCostGrowth: 1.15, baseInterval: 5 },
 
     // 🐟 물고기 테마
     { id: "sea_01", name: "직원7", emoji: "🐟", theme: "sea",
-      characterImage: "assets/villagers/sea_01.png", backgroundImage: "assets/background/sea_01.png",
       hireCost: 56700,    baseIncome: 244,    incomeGrowth: 1.13, baseUpgradeCost: 113400,    upgradeCostGrowth: 1.15, baseInterval: 4 },
     { id: "sea_02", name: "직원8",   emoji: "🐙", theme: "sea",
-      characterImage: "assets/villagers/sea_02.png", backgroundImage: "assets/background/sea_02.png",
       hireCost: 124700,   baseIncome: 610,    incomeGrowth: 1.13, baseUpgradeCost: 249400,    upgradeCostGrowth: 1.15, baseInterval: 4 },
     { id: "sea_03", name: "직원9", emoji: "🐢", theme: "sea",
-      characterImage: "assets/villagers/sea_03.png", backgroundImage: "assets/background/sea_03.png",
       hireCost: 274400,   baseIncome: 1526,   incomeGrowth: 1.13, baseUpgradeCost: 548800,    upgradeCostGrowth: 1.15, baseInterval: 3 },
 
     // ⛏️ 광산 테마
     { id: "mine_01", name: "직원10", emoji: "🦫", theme: "mine",
-      characterImage: "assets/villagers/mine_01.png", backgroundImage: "assets/background/mine_01.png",
       hireCost: 603600,   baseIncome: 3815,   incomeGrowth: 1.13, baseUpgradeCost: 1207200,   upgradeCostGrowth: 1.15, baseInterval: 3 },
     { id: "mine_02", name: "직원11",     emoji: "🐻", theme: "mine",
-      characterImage: "assets/villagers/mine_02.png", backgroundImage: "assets/background/mine_02.png",
       hireCost: 1328000,  baseIncome: 9537,   incomeGrowth: 1.13, baseUpgradeCost: 2656000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
     { id: "mine_03", name: "직원12", emoji: "👺", theme: "mine",
-      characterImage: "assets/villagers/mine_03.png", backgroundImage: "assets/background/mine_03.png",
       hireCost: 2922000,  baseIncome: 23842,  incomeGrowth: 1.13, baseUpgradeCost: 5844000,   upgradeCostGrowth: 1.15, baseInterval: 2 },
 
     // ⭐ 별 테마
     { id: "star_01", name: "직원13",  emoji: "🦉", theme: "star",
-      characterImage: "assets/villagers/star_01.png", backgroundImage: "assets/background/star_01.png",
       hireCost: 6428000,  baseIncome: 59605,  incomeGrowth: 1.13, baseUpgradeCost: 12856000,  upgradeCostGrowth: 1.15, baseInterval: 2 },
     { id: "star_02", name: "직원14",    emoji: "🦊", theme: "star",
-      characterImage: "assets/villagers/star_02.png", backgroundImage: "assets/background/star_02.png",
       hireCost: 14141000, baseIncome: 149012, incomeGrowth: 1.13, baseUpgradeCost: 28282000,  upgradeCostGrowth: 1.15, baseInterval: 1 },
     { id: "star_03", name: "직원15",  emoji: "🦄", theme: "star",
-      characterImage: "assets/villagers/star_03.png", backgroundImage: "assets/background/star_03.png",
       hireCost: 31109000, baseIncome: 372529, incomeGrowth: 1.13, baseUpgradeCost: 62218000,  upgradeCostGrowth: 1.15, baseInterval: 1 },
   ],
 };
@@ -334,9 +308,43 @@ const villagerIncomeTimers = Object.fromEntries(CONFIG.villagers.map((v) => [v.i
    --------------------------------------------------------- */
 // 유저가 직접 설정하는 커스텀 데이터. 게임 진행(state)과는 독립적으로 localStorage에
 // 별도 저장한다 — 저장 슬롯을 초기화하거나 바꿔도 커스텀 이미지/이름은 유지되는 게 자연스럽다.
-// key: 직원 id 또는 "main"(메인 캐릭터) → { name, characterImage(dataURL), backgroundImage(dataURL),
-//      debtorImage(dataURL, main 전용), debtorName(main 전용), motion, bubbleText }
+// key: 직원 id 또는 "main"(메인 캐릭터) → { name, emoji, characterImage(dataURL), backgroundImage(dataURL),
+//      debtorName/debtorEmoji/debtorImage(캐릭터2 전용, main 엔트리에 함께 저장), motion, bubbleText }
+// 설정 화면의 그리드에서는 "main"(캐릭터1)과 "main-debtor"(캐릭터2)를 별도 항목으로 보여주지만,
+// 실제 저장은 둘 다 customData["main"]에 들어간다 — getCustomEntry/setCustomField의 "main-debtor" 분기 참고.
 const CUSTOM_STORAGE_KEY = "village-clicker-custom-v1";
+
+// 캐릭터1/캐릭터2 기본(커스텀 없을 때) 이모지. 이미지도 없고 커스텀 이모지도 없을 때 최종 폴백으로 쓰인다.
+const DEFAULT_MAIN_EMOJI = "🐰";
+const DEFAULT_DEBTOR_EMOJI = "👻";
+
+// getDisplayName/getDisplayEmoji/getDisplayCharacterImage 등 직원용 범용 함수를 메인 캐릭터에도
+// 그대로 재사용하기 위한 가짜 "villagerData" 객체. id만 있으면 되므로 실제 CONFIG.villagers에는 없다.
+const MAIN_CHARACTER = { id: "main", name: "캐릭터1", emoji: DEFAULT_MAIN_EMOJI };
+const MAIN_DEBTOR_CHARACTER = { id: "main-debtor", name: "캐릭터2", emoji: DEFAULT_DEBTOR_EMOJI };
+
+// 상단 탭/강화 카드 아이콘의 기본값 — 캐릭터 스프라이트 기본 이모지(🐰/👻)와는 별개로, 원래부터
+// "성장 중(🌱)"/"도박 결과(🐟)"를 상징하는 용도라 기본값을 다르게 둔다. 커스텀 이모지를 설정하면
+// 이 기본값 대신 그 이모지가 탭/카드에도 그대로 쓰인다(버그 수정: 예전엔 항상 이 기본값 고정이었음).
+const TAB_ICON_DEFAULT_NORMAL = "🌱";
+const TAB_ICON_DEFAULT_DEBTOR = "🐟";
+
+// Stage 개수(현재 5) — 캐릭터1/캐릭터2의 "레벨(Stage)마다 다른 이미지" 기능이 이 개수만큼
+// 업로드 슬롯을 만든다. CONFIG.stageThresholds가 늘어나면 슬롯 수도 자동으로 함께 늘어난다.
+const MAIN_STAGE_COUNT = CONFIG.stageThresholds.length;
+
+// "main-debtor"(캐릭터2)는 커스텀 대상 목록에는 "main"(캐릭터1)과 별개 항목으로 보이지만,
+// 실제로는 같은 메인 캐릭터의 다른 모습이라 저장은 customData.main 안에 debtor 접두사 필드로 같이 들어간다.
+// characterImageStage1~N도 같은 방식으로 debtorImageStage1~N에 매핑한다.
+const MAIN_DEBTOR_FIELD_MAP = {
+  name: "debtorName",
+  emoji: "debtorEmoji",
+  characterImage: "debtorImage",
+  characterImageStaged: "debtorImageStaged",
+};
+for (let i = 1; i <= MAIN_STAGE_COUNT; i++) {
+  MAIN_DEBTOR_FIELD_MAP[`characterImageStage${i}`] = `debtorImageStage${i}`;
+}
 
 const CUSTOM_MOTIONS = [
   { id: "", label: "없음 (정지)" },
@@ -373,16 +381,26 @@ function saveCustomData() {
 }
 
 function getCustomEntry(id) {
+  if (id === "main-debtor") {
+    const main = customData.main || {};
+    const entry = {};
+    Object.entries(MAIN_DEBTOR_FIELD_MAP).forEach(([genericField, storedField]) => {
+      if (main[storedField] !== undefined) entry[genericField] = main[storedField];
+    });
+    return entry;
+  }
   return customData[id] || {};
 }
 
 function setCustomField(id, field, value) {
-  if (!customData[id]) customData[id] = {};
+  const storageId = id === "main-debtor" ? "main" : id;
+  const storageField = id === "main-debtor" ? (MAIN_DEBTOR_FIELD_MAP[field] || field) : field;
+  if (!customData[storageId]) customData[storageId] = {};
   if (value === "" || value === null || value === undefined) {
-    delete customData[id][field];
-    if (Object.keys(customData[id]).length === 0) delete customData[id];
+    delete customData[storageId][storageField];
+    if (Object.keys(customData[storageId]).length === 0) delete customData[storageId];
   } else {
-    customData[id][field] = value;
+    customData[storageId][storageField] = value;
   }
   return saveCustomData();
 }
@@ -598,9 +616,11 @@ const el = {
   mainStageBgImg: document.getElementById("main-stage-bg-img"),
   mainCharacter: document.getElementById("main-character"),
   charGroupNormal: document.getElementById("char-group-normal"), // 평소 캐릭터 그룹(이미지+이모지 폴백) 전체
-  charGroupDebtor: document.getElementById("char-group-debtor"), // 도박 캐릭터 그룹(이미지+SVG 폴백) 전체
+  charGroupDebtor: document.getElementById("char-group-debtor"), // 도박 캐릭터 그룹(이미지+이모지 폴백) 전체
   charNormal: document.getElementById("char-svg-normal"), // 그룹 내부의 <img> (src만 갱신할 때 사용)
   charImgDebtor: document.getElementById("char-img-debtor"), // 그룹 내부의 <img> (src만 갱신할 때 사용)
+  charFallbackNormal: document.getElementById("char-fallback-normal"), // 이미지 없을 때 보이는 이모지
+  charFallbackDebtor: document.getElementById("char-fallback-debtor"), // 이미지 없을 때 보이는 이모지
   popupLayer: document.getElementById("popup-layer"),
   contentArea: document.getElementById("content-area"),
   currentMoney: document.getElementById("current-money"),
@@ -638,6 +658,7 @@ const el = {
 
   speedOptions: document.getElementById("speed-options"),
   speedHint: document.getElementById("speed-hint"),
+  themeColorOptions: document.getElementById("theme-color-options"),
   saveSlots: document.getElementById("save-slots"),
   resetBtn: document.getElementById("reset-btn"),
   resetModal: document.getElementById("reset-modal"),
@@ -658,6 +679,9 @@ const el = {
   achievementToastIcon: document.getElementById("achievement-toast-icon"),
   achievementToastName: document.getElementById("achievement-toast-name"),
 
+  customGalleryBtn: document.getElementById("custom-gallery-btn"),
+  customGalleryModal: document.getElementById("custom-gallery-modal"),
+  customGalleryCloseBtn: document.getElementById("custom-gallery-close-btn"),
   customTargetList: document.getElementById("custom-target-list"),
   customExportBtn: document.getElementById("custom-export-btn"),
   customImportBtn: document.getElementById("custom-import-btn"),
@@ -669,17 +693,13 @@ const el = {
   customEditNameField: document.getElementById("custom-edit-name-field"),
   customEditName: document.getElementById("custom-edit-name"),
   customEditCharField: document.getElementById("custom-edit-char-field"),
-  customEditCharPreview: document.getElementById("custom-edit-char-preview"),
-  customEditCharFile: document.getElementById("custom-edit-char-file"),
-  customEditCharClear: document.getElementById("custom-edit-char-clear"),
+  customEditCharStagedLabel: document.getElementById("custom-edit-char-staged-label"),
+  customEditCharStaged: document.getElementById("custom-edit-char-staged"),
+  customEditCharBody: document.getElementById("custom-edit-char-body"),
   customEditBgField: document.getElementById("custom-edit-bg-field"),
-  customEditBgPreview: document.getElementById("custom-edit-bg-preview"),
-  customEditBgFile: document.getElementById("custom-edit-bg-file"),
-  customEditBgClear: document.getElementById("custom-edit-bg-clear"),
-  customEditDebtorField: document.getElementById("custom-edit-debtor-field"),
-  customEditDebtorPreview: document.getElementById("custom-edit-debtor-preview"),
-  customEditDebtorFile: document.getElementById("custom-edit-debtor-file"),
-  customEditDebtorClear: document.getElementById("custom-edit-debtor-clear"),
+  customEditBgStagedLabel: document.getElementById("custom-edit-bg-staged-label"),
+  customEditBgStaged: document.getElementById("custom-edit-bg-staged"),
+  customEditBgBody: document.getElementById("custom-edit-bg-body"),
   customEditMotionField: document.getElementById("custom-edit-motion-field"),
   customEditMotion: document.getElementById("custom-edit-motion"),
   customEditBubbleField: document.getElementById("custom-edit-bubble-field"),
@@ -740,31 +760,27 @@ function renderClickPanel() {
 function renderStage() {
   const stage = getStage(state.clickLevel);
   el.mainStage.className = `stage-bg stage-${stage}`;
-  state.currentStage = stage; // 도박 결과(캐릭터2 이미지)가 "지금 Stage"를 알 수 있도록 기록
-  applyStageAssets(stage, state.isDebtorMode);
+  state.currentStage = stage; // "인생한방"이 Stage5 여부를 판단하는 데 쓰인다 (handleFightChallenge 근처 참고)
+  applyStageAssets();
   renderFightChallengeButton();
 }
 
 // 캐릭터2 모드(도박 최저확률 당첨) 여부에 따라 캐릭터 모습 + 관련 텍스트를 전환
-// "평소 캐릭터 그룹"(이미지 또는 실패 시 이모지 폴백)과 "도박 캐릭터 그룹"(이미지 또는 실패 시
-// 손그림 SVG 폴백)을 통째로 켜고 끈다. 그룹 안에서 이미지/폴백 중 뭐가 실제로 보이는지는 각
-// <img>의 onerror가 로드 성공 여부에 따라 독립적으로 관리하므로(index.html 참고) 여기서는
-// 건드리지 않는다 — 그룹을 껐다 다시 켜도 onerror가 만들어둔 이미지/폴백 상태가 그대로 유지된다.
+// "평소 캐릭터 그룹"과 "도박 캐릭터 그룹"을 통째로 켜고 끈다. 그룹 안에서 이미지/이모지 폴백 중
+// 뭐가 실제로 보일지는 applyStageAssets/onerror가 독립적으로 관리하므로 여기서는 건드리지 않는다.
 function renderDebtorMode() {
   el.charGroupNormal.hidden = state.isDebtorMode;
   el.charGroupDebtor.hidden = !state.isDebtorMode;
-  const customMain = getCustomEntry("main");
-  const debtorGoalLabel = customMain.debtorName || "캐릭터2";
-  const normalGoalLabel = customMain.name || "캐릭터1";
   el.goalLabel.textContent = "목표 금액"; // 캐릭터 이름과 무관하게 항상 고정 라벨
-  el.mainStage.classList.toggle("debtor-mode", state.isDebtorMode); // 배경을 갈색 계열로 전환하는 트리거
-  applyStageAssets(state.currentStage ?? getStage(state.clickLevel), state.isDebtorMode);
+  applyStageAssets(); // 배경은 캐릭터2 모드여도 캐릭터1과 동일한 배경(커스텀 배경 공유)을 그대로 쓴다
   renderFightChallengeButton();
 
   // 상단 탭 메뉴 "캐릭터1"/카드 제목 "캐릭터1 강화"도 캐릭터2 모드에선 "캐릭터2"/"캐릭터2 강화"로,
-  // 아이콘도 🌱(캐릭터1) <-> 🐟(캐릭터2)로 함께 전환한다. 커스텀 이름이 있으면 그걸 우선 쓴다.
-  const label = state.isDebtorMode ? debtorGoalLabel : normalGoalLabel;
-  const icon = state.isDebtorMode ? "🐟" : "🌱";
+  // 아이콘도 🌱(캐릭터1) <-> 🐟(캐릭터2)로 함께 전환한다. 커스텀 이름/이모지가 있으면 그걸 우선 쓴다.
+  const label = state.isDebtorMode ? getDisplayName(MAIN_DEBTOR_CHARACTER) : getDisplayName(MAIN_CHARACTER);
+  const icon = state.isDebtorMode
+    ? (getCustomEntry("main-debtor").emoji || TAB_ICON_DEFAULT_DEBTOR)
+    : (getCustomEntry("main").emoji || TAB_ICON_DEFAULT_NORMAL);
   if (el.clickTabIcon) el.clickTabIcon.textContent = icon;
   if (el.clickTabLabel) el.clickTabLabel.textContent = label;
   if (el.upgradeCardIcon) el.upgradeCardIcon.textContent = icon;
@@ -773,46 +789,54 @@ function renderDebtorMode() {
   if (el.mainCharacter) el.mainCharacter.setAttribute("aria-label", `${label}를 클릭해서 돈 벌기`);
 }
 
-// 실제 이미지 에셋이 있으면 그걸 쓰고, 없으면(아직 준비 전이거나 로드 실패) 기존 단색 배경/SVG로
-// 자동 대체된다. 각 <img>의 onerror가 로드 실패를 감지해서 스스로 숨고 폴백을 보여주는 역할을
-// 전담하므로(index.html 참고), 여기서는 "어떤 stage의 어떤 src를 시도할지"만 새로 세팅해주면
-// 된다 — src가 바뀌면 브라우저가 다시 로드를 시도하고, 성공/실패 여부에 따라 onerror가 알아서
-// hidden을 정리한다. 캐릭터2 모드일 때도 "그 시점의 Stage와 같은 단계"의 debtor 이미지를 쓰도록
-// stage를 그대로 넘겨받는다.
-function applyStageAssets(stage, isDebtor) {
-  const assets = CONFIG.stageAssets[stage - 1];
-  if (!assets) return;
+// 이미지가 있으면 로드를 시도하고(성공/실패는 onload/onerror가 마무리), 없으면 명시적으로
+// 숨기고 src를 지운다 — "커스텀 이미지를 지웠을 때 예전 이미지가 화면에 남는" 문제를 막으려면
+// 값이 없는 경우도 "지금 상태"로 취급해서 매번 갱신해야 한다.
+function applyCharacterImageOrEmoji(imgEl, fallbackEl, src, emoji) {
+  if (fallbackEl) fallbackEl.textContent = emoji;
+  if (imgEl.dataset.stageSrc === (src || "")) return; // 이미 같은 상태면 다시 손대지 않는다
+  imgEl.dataset.stageSrc = src || "";
+  if (src) {
+    imgEl.hidden = false;
+    imgEl.src = src;
+  } else {
+    imgEl.hidden = true;
+    imgEl.removeAttribute("src");
+    if (fallbackEl) fallbackEl.hidden = false;
+  }
+}
 
-  // 메인 캐릭터에 커스텀 이미지가 있으면 Stage 단계와 무관하게 그 이미지 하나로 고정한다
-  // (커스텀은 "이 캐릭터를 이렇게 보이게" 지정하는 것이라, Stage별 5장을 다 요구하지 않는다).
+// 배경 이미지는 이모지 폴백이 없다 — 없으면 #main-stage 자체의 그라디언트(.stage-bg.stage-N)가 보인다.
+function applyBackgroundImageOrFallback(imgEl, src) {
+  if (imgEl.dataset.stageSrc === (src || "")) return;
+  imgEl.dataset.stageSrc = src || "";
+  if (src) {
+    imgEl.hidden = false;
+    imgEl.src = src;
+  } else {
+    imgEl.hidden = true;
+    imgEl.removeAttribute("src");
+  }
+}
+
+// 메인 캐릭터/배경은 기본 이미지 자산을 두지 않는다 — 커스텀 업로드가 있으면 그 이미지,
+// 없으면 이모지(캐릭터)/그라디언트(배경)만 보인다(설정 > 이미지 커스텀 참고).
+// customEntry의 field(예: "characterImage")가 "레벨(Stage)마다 다르게" 켜져 있으면(${field}Staged)
+// 지금 Stage에 해당하는 이미지(${field}Stage${stage})를, 꺼져 있으면 항상 쓰는 단일 이미지를 반환한다.
+function resolveStagedField(customEntry, field, stage) {
+  if (customEntry[`${field}Staged`]) {
+    return customEntry[`${field}Stage${stage}`] || "";
+  }
+  return customEntry[field] || "";
+}
+
+function applyStageAssets() {
+  const stage = state.currentStage ?? getStage(state.clickLevel);
   const customMain = getCustomEntry("main");
-  const normalSrc = customMain.characterImage || assets.normal;
-  const debtorSrc = customMain.debtorImage || assets.debtor;
-  const bgSrc = customMain.backgroundImage || assets.background;
-
-  // 평소 캐릭터: src가 실제로 바뀔 때만 다시 로드하도록 비교해서, 매 렌더링마다 불필요하게
-  // 네트워크 요청이 반복되거나 onerror가 다시 실행되는 것을 막는다.
-  if (normalSrc && el.charNormal.dataset.stageSrc !== normalSrc) {
-    el.charNormal.dataset.stageSrc = normalSrc;
-    el.charNormal.hidden = false; // 로드 재시도 — 실패하면 onerror가 다시 숨긴다
-    el.charNormal.src = normalSrc;
-  }
-
-  // 도박 캐릭터: 마찬가지로 src가 바뀔 때만 다시 로드.
-  if (debtorSrc && el.charImgDebtor.dataset.stageSrc !== debtorSrc) {
-    el.charImgDebtor.dataset.stageSrc = debtorSrc;
-    el.charImgDebtor.hidden = false; // 로드 재시도 — 실패하면 onerror가 다시 숨긴다
-    el.charImgDebtor.src = debtorSrc;
-  }
-
-  // 배경: 커스텀 배경이 있으면 그걸 우선 쓰고(Stage와 무관하게 고정), 없으면 기존 Stage별 배경을 쓴다.
-  // src가 실제로 바뀔 때만 다시 로드. onerror가 로드 실패 시 hidden 처리해서
-  // #main-stage 자체의 그라디언트(.stage-bg.stage-N)가 자연스럽게 보이게 한다.
-  if (bgSrc && el.mainStageBgImg.dataset.stageSrc !== bgSrc) {
-    el.mainStageBgImg.dataset.stageSrc = bgSrc;
-    el.mainStageBgImg.hidden = false;
-    el.mainStageBgImg.src = bgSrc;
-  }
+  const customDebtor = getCustomEntry("main-debtor");
+  applyCharacterImageOrEmoji(el.charNormal, el.charFallbackNormal, resolveStagedField(customMain, "characterImage", stage), getDisplayEmoji(MAIN_CHARACTER));
+  applyCharacterImageOrEmoji(el.charImgDebtor, el.charFallbackDebtor, resolveStagedField(customDebtor, "characterImage", stage), getDisplayEmoji(MAIN_DEBTOR_CHARACTER));
+  applyBackgroundImageOrFallback(el.mainStageBgImg, resolveStagedField(customMain, "backgroundImage", stage));
 }
 
 // 돈이 바뀔 때마다 항상 함께 갱신돼야 하는 화면들 (금액 표시 + 클릭 패널 + 직원 고용/강화 버튼 상태 + 배속 해금 여부)
@@ -1564,6 +1588,46 @@ function handleSpeedSelect(value) {
 }
 
 /* ---------------------------------------------------------
+   10-1. 테마 색상 (설정 > 테마 색상) — 게임 진행과는 무관한 순수 표시 설정이라 localStorage에
+   따로 저장한다. "green"은 기본값이라 <html data-theme>를 아예 지워서 :root 기본값을 그대로 쓴다.
+   --------------------------------------------------------- */
+const THEME_COLOR_STORAGE_KEY = "village-clicker-theme-v1";
+const THEME_COLORS = ["green", "sky", "navy", "purple", "red", "pink", "orange", "mono"];
+const DEFAULT_THEME_COLOR = "green";
+
+function loadThemeColor() {
+  try {
+    const saved = window.localStorage.getItem(THEME_COLOR_STORAGE_KEY);
+    return THEME_COLORS.includes(saved) ? saved : DEFAULT_THEME_COLOR;
+  } catch (e) {
+    return DEFAULT_THEME_COLOR;
+  }
+}
+
+function applyThemeColor(themeId) {
+  if (themeId === DEFAULT_THEME_COLOR) {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", themeId);
+  }
+  if (el.themeColorOptions) {
+    el.themeColorOptions.querySelectorAll(".theme-color-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.theme === themeId);
+    });
+  }
+}
+
+function handleThemeColorSelect(themeId) {
+  if (!THEME_COLORS.includes(themeId)) return;
+  applyThemeColor(themeId);
+  try {
+    window.localStorage.setItem(THEME_COLOR_STORAGE_KEY, themeId);
+  } catch (e) {
+    // 저장 실패해도(용량 초과 등) 화면 반영은 이미 됐으니 조용히 무시 — 새로고침하면 기본값으로 돌아갈 뿐
+  }
+}
+
+/* ---------------------------------------------------------
    11. 저장 (슬롯 3개, localStorage)
    --------------------------------------------------------- */
 const SAVE_KEY_PREFIX = "village-clicker-save-";
@@ -1942,18 +2006,47 @@ function fileToResizedDataUrl(file) {
   });
 }
 
-// 설정 탭의 "캐릭터 커스텀" 목록(메인 캐릭터 + 직원 15명 + 테마 5개)을 그린다.
+// 설정 > "이미지 커스텀" 그리드에 표시할 대상을 그룹으로 묶는다 — 캐릭터 / 직원(테마별 소제목) /
+// 테마 아이콘 순서로, 뒤섞여 있던 예전과 달리 한눈에 구분되게 한다. 캐릭터1/캐릭터2는 겉보기엔
+// 별개 항목이지만 실제 저장은 둘 다 customData.main에 들어간다(getCustomEntry/setCustomField 참고).
+function getCustomGalleryGroups() {
+  return [
+    {
+      label: "캐릭터",
+      targets: [
+        { id: "main", icon: getDisplayEmoji(MAIN_CHARACTER), name: getDisplayName(MAIN_CHARACTER) },
+        { id: "main-debtor", icon: getDisplayEmoji(MAIN_DEBTOR_CHARACTER), name: getDisplayName(MAIN_DEBTOR_CHARACTER) },
+      ],
+    },
+    ...CONFIG.themes.map((theme) => ({
+      label: `${getDisplayThemeIcon(theme)} ${theme.name} 직원`,
+      targets: CONFIG.villagers
+        .filter((v) => v.theme === theme.id)
+        .map((v) => ({ id: v.id, icon: getDisplayEmoji(v), name: getDisplayName(v) })),
+    })),
+    {
+      label: "테마 아이콘",
+      targets: CONFIG.themes.map((t) => ({ id: `theme-${t.id}`, icon: getDisplayThemeIcon(t), name: t.name })),
+    },
+  ];
+}
+
 function renderCustomTargetList() {
   if (!el.customTargetList) return;
-  const targets = [
-    { id: "main", label: "🌱 캐릭터1 / 캐릭터2 (메인 캐릭터)" },
-    ...CONFIG.villagers.map((v) => ({ id: v.id, label: `${getDisplayEmoji(v)} ${getDisplayName(v)}` })),
-    ...CONFIG.themes.map((t) => ({ id: `theme-${t.id}`, label: `${getDisplayThemeIcon(t)} ${t.name} 아이콘` })),
-  ];
-  el.customTargetList.innerHTML = targets
-    .map((t) => {
-      const hasCustom = Object.keys(getCustomEntry(t.id)).length > 0;
-      return `<button class="custom-target-btn ${hasCustom ? "has-custom" : ""}" data-custom-id="${t.id}">${t.label}${hasCustom ? " ✓" : ""}</button>`;
+  el.customTargetList.innerHTML = getCustomGalleryGroups()
+    .map((group) => {
+      const buttons = group.targets
+        .map((t) => {
+          const hasCustom = Object.keys(getCustomEntry(t.id)).length > 0;
+          return `
+            <button class="custom-target-btn ${hasCustom ? "has-custom" : ""}" data-custom-id="${t.id}">
+              ${hasCustom ? '<span class="custom-target-check">✓</span>' : ""}
+              <span class="custom-target-icon">${t.icon}</span>
+              <span class="custom-target-name">${t.name}</span>
+            </button>`;
+        })
+        .join("");
+      return `<div class="custom-target-group-label">${group.label}</div>${buttons}`;
     })
     .join("");
   el.customTargetList.querySelectorAll("[data-custom-id]").forEach((btn) => {
@@ -1962,12 +2055,13 @@ function renderCustomTargetList() {
 }
 
 // 커스텀 편집 모달을 연다. 대상은 세 종류다:
-// - "main": 메인 캐릭터 (이름/캐릭터·배경·캐릭터2 이미지 보임, 모션/말풍선/이모지 숨김)
+// - "main"/"main-debtor": 캐릭터1/캐릭터2 (이름/이모지/캐릭터 이미지 보임, "main"만 배경 이미지도 보임)
 // - "theme-<themeId>": 테마 분류 아이콘 (이모지 필드만 보이고 나머지는 전부 숨김)
-// - 그 외(직원 id): 이름/이모지/캐릭터·배경 이미지/모션/말풍선 전부 보임 (캐릭터2 필드만 숨김)
+// - 그 외(직원 id): 이름/이모지/캐릭터·배경 이미지/모션/말풍선 전부 보임
 function openCustomEditModal(id) {
   currentCustomEditId = id;
   const isMain = id === "main";
+  const isMainDebtor = id === "main-debtor";
   const isTheme = id.startsWith("theme-");
   const custom = getCustomEntry(id);
 
@@ -1977,55 +2071,63 @@ function openCustomEditModal(id) {
     const themeId = id.replace("theme-", "");
     const theme = CONFIG.themes.find((t) => t.id === themeId);
     el.customEditTitle.textContent = `${theme?.name ?? ""} 아이콘 커스텀`;
+  } else if (isMain || isMainDebtor) {
+    el.customEditTitle.textContent = isMain ? "캐릭터1 커스텀" : "캐릭터2 커스텀";
   } else {
-    el.customEditTitle.textContent = isMain
-      ? "캐릭터1 / 캐릭터2 커스텀"
-      : `${CONFIG.villagers.find((v) => v.id === id)?.name ?? ""} 커스텀`;
+    el.customEditTitle.textContent = `${CONFIG.villagers.find((v) => v.id === id)?.name ?? ""} 커스텀`;
   }
 
-  // 이모지 필드: 테마와 직원만 해당(메인 캐릭터는 이미지 위주라 이모지 커스텀 대상에서 제외)
-  el.customEditEmojiField.hidden = isMain;
+  // 이모지 필드: 모든 대상에 공통(테마 포함 전부 이모지를 가질 수 있음)
+  el.customEditEmojiField.hidden = false;
   el.customEditEmoji.value = custom.emoji || "";
-  el.customEditEmoji.placeholder = "기본 이모지 사용";
+  el.customEditEmoji.placeholder = isMain ? "기본 이모지(🐰) 사용" : isMainDebtor ? "기본 이모지(👻) 사용" : "기본 이모지 사용";
 
   // 이름 필드: 테마에는 이름이 없음
   el.customEditNameField.hidden = isTheme;
   el.customEditName.value = custom.name || "";
-  el.customEditName.placeholder = isMain ? "캐릭터1 (기본 이름 사용)" : "기본 이름 사용";
+  el.customEditName.placeholder = isMain ? "캐릭터1 (기본 이름 사용)" : isMainDebtor ? "캐릭터2 (기본 이름 사용)" : "기본 이름 사용";
 
-  // 캐릭터 이미지: 테마는 이미지가 아니라 이모지만 다루므로 숨김
+  // 캐릭터 이미지: 테마는 이미지가 아니라 이모지만 다루므로 숨김. "레벨마다 다르게" 토글은
+  // 캐릭터1/캐릭터2만(Stage 개념이 있는 대상만) 보여준다.
   el.customEditCharField.hidden = isTheme;
-  el.customEditCharPreview.src = custom.characterImage || "";
-  el.customEditCharPreview.hidden = !custom.characterImage;
-  el.customEditCharFile.value = "";
+  if (el.customEditCharStagedLabel) el.customEditCharStagedLabel.hidden = !(isMain || isMainDebtor);
+  if (el.customEditCharStaged) el.customEditCharStaged.checked = !!custom.characterImageStaged;
+  renderStagedImageField(el.customEditCharBody, "characterImage", id);
 
-  // 배경 이미지: 테마는 대상 아님. 메인 캐릭터도 배경을 커스텀할 수 있다.
-  el.customEditBgField.hidden = isTheme;
-  el.customEditBgPreview.src = custom.backgroundImage || "";
-  el.customEditBgPreview.hidden = !custom.backgroundImage;
-  el.customEditBgFile.value = "";
-
-  el.customEditDebtorField.hidden = !isMain; // 캐릭터2 이미지는 메인 캐릭터 전용
-  el.customEditDebtorPreview.src = custom.debtorImage || "";
-  el.customEditDebtorPreview.hidden = !custom.debtorImage;
-  el.customEditDebtorFile.value = "";
+  // 배경 이미지: 테마와 캐릭터2는 대상 아님(캐릭터2는 캐릭터1과 배경을 공유한다). "레벨마다
+  // 다르게" 토글은 캐릭터1(main)만.
+  el.customEditBgField.hidden = isTheme || isMainDebtor;
+  if (el.customEditBgStagedLabel) el.customEditBgStagedLabel.hidden = !isMain;
+  if (el.customEditBgStaged) el.customEditBgStaged.checked = !!custom.backgroundImageStaged;
+  renderStagedImageField(el.customEditBgBody, "backgroundImage", id);
 
   el.customEditMotion.innerHTML = CUSTOM_MOTIONS.map(
     (m) => `<option value="${m.id}">${m.label}</option>`
   ).join("");
   el.customEditMotion.value = custom.motion || "";
-  el.customEditMotionField.hidden = isMain || isTheme; // 메인/테마는 모션 커스텀 대상 아님
+  el.customEditMotionField.hidden = isMain || isMainDebtor || isTheme; // 메인/테마는 모션 커스텀 대상 아님
 
   el.customEditBubble.value = custom.bubbleText || "";
-  el.customEditBubbleField.hidden = isMain || isTheme; // 말풍선은 직원 전용 기능
+  el.customEditBubbleField.hidden = isMain || isMainDebtor || isTheme; // 말풍선은 직원 전용 기능
 
+  if (el.customGalleryModal) el.customGalleryModal.hidden = true; // 그리드 위로 편집 모달만 보이게
   el.customEditModal.hidden = false;
 }
 
 function closeCustomEditModal() {
   el.customEditModal.hidden = true;
   currentCustomEditId = null;
-  renderCustomTargetList(); // 방금 편집한 내용이 목록의 "✓" 표시에 반영되도록
+  renderCustomTargetList(); // 방금 편집한 내용이 그리드의 아이콘/"✓" 표시에 반영되도록
+  if (el.customGalleryModal) el.customGalleryModal.hidden = false; // 그리드 모달로 복귀
+}
+
+function openCustomGalleryModal() {
+  renderCustomTargetList();
+  if (el.customGalleryModal) el.customGalleryModal.hidden = false;
+}
+
+function closeCustomGalleryModal() {
+  if (el.customGalleryModal) el.customGalleryModal.hidden = true;
 }
 
 // 편집 모달의 각 입력이 바뀔 때마다 즉시 저장 + 화면 반영한다 (별도의 "저장" 버튼 없이 바로 적용).
@@ -2038,8 +2140,8 @@ function applyCustomEditChange(field, value) {
     return;
   }
   el.customEditError.hidden = true;
-  if (currentCustomEditId === "main") {
-    renderDebtorMode(); // 메인 캐릭터 이름/이미지 갱신
+  if (currentCustomEditId === "main" || currentCustomEditId === "main-debtor") {
+    renderDebtorMode(); // 캐릭터1/캐릭터2 이름/이모지/이미지 갱신
   } else if (currentCustomEditId.startsWith("theme-")) {
     // 테마 아이콘은 직원 고용 화면의 테마탭과 직원 확인 화면의 테마탭 둘 다에 쓰인다
     renderHireThemeTabs();
@@ -2051,25 +2153,81 @@ function applyCustomEditChange(field, value) {
   }
 }
 
-async function handleCustomImageInput(fileInput, field, previewEl) {
-  const file = fileInput.files[0];
-  if (!file) return;
-  try {
-    const dataUrl = await fileToResizedDataUrl(file);
-    previewEl.src = dataUrl;
-    previewEl.hidden = false;
-    applyCustomEditChange(field, dataUrl);
-  } catch (e) {
-    el.customEditError.textContent = e.message || "이미지를 불러오지 못했어요.";
-    el.customEditError.hidden = false;
-  }
+// 업로드 슬롯 하나(단일 모드 1개, 또는 스테이지 모드의 Stage 1~N 칸 중 하나)의 HTML.
+// stage가 있으면 그 슬롯이 담당하는 필드는 "${field}Stage${stage}"(예: characterImageStage3),
+// 없으면 항상 쓰는 단일 필드("${field}")를 담당한다 — data-stage로 표시해서 이벤트에서 구분한다.
+function buildUploadSlotHtml(value, stage) {
+  const hasImage = !!value;
+  const stageAttr = stage ? ` data-stage="${stage}"` : "";
+  return `
+    <div class="custom-upload-slot">
+      ${stage ? `<span class="custom-edit-stage-label">Stage ${stage}</span>` : ""}
+      <label class="custom-upload-dropzone ${hasImage ? "has-image" : ""}" data-role="dropzone"${stageAttr}>
+        ${hasImage
+          ? `<img class="custom-upload-preview" src="${value}" alt="" />`
+          : `<span class="custom-upload-icon">📷</span><span class="custom-upload-hint">클릭 또는 드래그</span>`}
+        <input type="file" class="custom-upload-input" data-role="file" accept="image/*"${stageAttr} />
+      </label>
+      ${hasImage ? `<button type="button" class="custom-upload-clear" data-role="clear"${stageAttr}>삭제</button>` : ""}
+    </div>`;
 }
 
-function handleCustomImageClear(field, previewEl, fileInput) {
-  previewEl.src = "";
-  previewEl.hidden = true;
-  fileInput.value = "";
-  applyCustomEditChange(field, "");
+// 캐릭터/배경 이미지 필드 컨테이너(bodyEl) 하나를 그린다. field는 "characterImage" 또는
+// "backgroundImage" — id의 "${field}Staged"가 켜져 있으면 Stage 1~N 업로드 슬롯을, 꺼져 있으면
+// 단일 업로드 슬롯 하나를 보여준다. 업로드/삭제할 때마다 이 함수를 다시 불러 미리보기를 갱신한다
+// (모달 전체가 아니라 이 컨테이너만 다시 그리므로 다른 필드 입력 포커스에 영향 없음).
+function renderStagedImageField(bodyEl, field, id) {
+  if (!bodyEl) return;
+  const custom = getCustomEntry(id);
+  const staged = !!custom[`${field}Staged`];
+
+  bodyEl.innerHTML = staged
+    ? `<div class="custom-edit-stage-grid">${Array.from({ length: MAIN_STAGE_COUNT }, (_, i) => i + 1)
+        .map((stage) => buildUploadSlotHtml(custom[`${field}Stage${stage}`] || "", stage))
+        .join("")}</div>`
+    : `<div class="custom-edit-image-row">${buildUploadSlotHtml(custom[field] || "", null)}</div>`;
+
+  const targetFieldOf = (node) => (node.dataset.stage ? `${field}Stage${node.dataset.stage}` : field);
+
+  bodyEl.querySelectorAll('[data-role="dropzone"]').forEach((zone) => {
+    const fileInput = zone.querySelector('[data-role="file"]');
+    const handleFile = async (file) => {
+      if (!file) return;
+      try {
+        const dataUrl = await fileToResizedDataUrl(file);
+        applyCustomEditChange(targetFieldOf(zone), dataUrl);
+        renderStagedImageField(bodyEl, field, id);
+      } catch (e) {
+        el.customEditError.textContent = e.message || "이미지를 불러오지 못했어요.";
+        el.customEditError.hidden = false;
+      }
+    };
+    fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+    // 드래그 앤 드롭 업로드 — 기본 파일 선택 버튼 없이 영역째로 드래그해서 올릴 수 있게.
+    zone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      zone.classList.add("dragover");
+    });
+    zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("dragover");
+      handleFile(e.dataTransfer.files[0]);
+    });
+  });
+
+  bodyEl.querySelectorAll('[data-role="clear"]').forEach((btn) => {
+    btn.addEventListener("click", () => {
+      applyCustomEditChange(targetFieldOf(btn), "");
+      renderStagedImageField(bodyEl, field, id);
+    });
+  });
+}
+
+// "레벨(Stage)마다 다르게" 토글이 바뀌었을 때: 플래그를 저장하고 해당 필드 컨테이너를 다시 그린다.
+function handleStagedToggle(field, bodyEl, checked) {
+  applyCustomEditChange(`${field}Staged`, checked ? "1" : "");
+  renderStagedImageField(bodyEl, field, currentCustomEditId);
 }
 
 // 커스텀 설정 전체를 파일로 내보낸다 (이미지 포함 — dataURL 형태 그대로라 파일 하나로 완결됨).
@@ -2123,6 +2281,15 @@ function resetAllCustomData() {
   closeCustomEditModal();
 }
 
+// 모달 바깥(반투명 배경) 클릭 시 닫히게 한다. 모달 박스 안쪽 클릭은 e.target이 overlayEl 자신이
+// 아니므로(자식 요소) 무시된다 — 그래서 굳이 stopPropagation 없이도 안전하게 동작한다.
+function setupOverlayClickToClose(overlayEl, closeFn) {
+  if (!overlayEl) return;
+  overlayEl.addEventListener("click", (e) => {
+    if (e.target === overlayEl) closeFn();
+  });
+}
+
 /* ---------------------------------------------------------
    13. 초기화
    --------------------------------------------------------- */
@@ -2147,6 +2314,14 @@ function init() {
       btn.addEventListener("click", () => handleSpeedSelect(Number(btn.dataset.speed)));
     });
   }
+
+  // 테마 색상 스와치
+  if (el.themeColorOptions) {
+    el.themeColorOptions.querySelectorAll(".theme-color-btn").forEach((btn) => {
+      btn.addEventListener("click", () => handleThemeColorSelect(btn.dataset.theme));
+    });
+  }
+  applyThemeColor(loadThemeColor()); // 저장된 테마(없으면 기본 초록)를 페이지 로드 시 바로 적용
 
   // 저장/불러오기 버튼 (슬롯이 동적으로 재생성되므로 컨테이너에 위임)
   if (el.saveSlots) {
@@ -2193,6 +2368,8 @@ function init() {
   if (el.fightResultCloseBtn) el.fightResultCloseBtn.addEventListener("click", closeFightResultModal);
 
   // 캐릭터 커스텀 (이름/이미지/모션/말풍선)
+  if (el.customGalleryBtn) el.customGalleryBtn.addEventListener("click", openCustomGalleryModal);
+  if (el.customGalleryCloseBtn) el.customGalleryCloseBtn.addEventListener("click", closeCustomGalleryModal);
   if (el.customExportBtn) el.customExportBtn.addEventListener("click", exportCustomData);
   if (el.customImportBtn) el.customImportBtn.addEventListener("click", () => el.customImportFile.click());
   if (el.customImportFile) {
@@ -2208,34 +2385,14 @@ function init() {
   if (el.customEditName) {
     el.customEditName.addEventListener("input", () => applyCustomEditChange("name", el.customEditName.value.trim()));
   }
-  if (el.customEditCharFile) {
-    el.customEditCharFile.addEventListener("change", () =>
-      handleCustomImageInput(el.customEditCharFile, "characterImage", el.customEditCharPreview)
+  if (el.customEditCharStaged) {
+    el.customEditCharStaged.addEventListener("change", () =>
+      handleStagedToggle("characterImage", el.customEditCharBody, el.customEditCharStaged.checked)
     );
   }
-  if (el.customEditCharClear) {
-    el.customEditCharClear.addEventListener("click", () =>
-      handleCustomImageClear("characterImage", el.customEditCharPreview, el.customEditCharFile)
-    );
-  }
-  if (el.customEditBgFile) {
-    el.customEditBgFile.addEventListener("change", () =>
-      handleCustomImageInput(el.customEditBgFile, "backgroundImage", el.customEditBgPreview)
-    );
-  }
-  if (el.customEditBgClear) {
-    el.customEditBgClear.addEventListener("click", () =>
-      handleCustomImageClear("backgroundImage", el.customEditBgPreview, el.customEditBgFile)
-    );
-  }
-  if (el.customEditDebtorFile) {
-    el.customEditDebtorFile.addEventListener("change", () =>
-      handleCustomImageInput(el.customEditDebtorFile, "debtorImage", el.customEditDebtorPreview)
-    );
-  }
-  if (el.customEditDebtorClear) {
-    el.customEditDebtorClear.addEventListener("click", () =>
-      handleCustomImageClear("debtorImage", el.customEditDebtorPreview, el.customEditDebtorFile)
+  if (el.customEditBgStaged) {
+    el.customEditBgStaged.addEventListener("change", () =>
+      handleStagedToggle("backgroundImage", el.customEditBgBody, el.customEditBgStaged.checked)
     );
   }
   if (el.customEditMotion) {
@@ -2252,6 +2409,16 @@ function init() {
     });
   }
   if (el.customEditCloseBtn) el.customEditCloseBtn.addEventListener("click", closeCustomEditModal);
+
+  // 모달 바깥 클릭 시 닫기 (전부 공통 동작)
+  setupOverlayClickToClose(el.resetModal, closeResetModal);
+  setupOverlayClickToClose(el.payoutModal, closePayoutModal);
+  setupOverlayClickToClose(el.victoryModal, closeVictoryModal);
+  setupOverlayClickToClose(el.achievementModal, closeAchievementModal);
+  setupOverlayClickToClose(el.customGalleryModal, closeCustomGalleryModal);
+  setupOverlayClickToClose(el.customEditModal, closeCustomEditModal);
+  setupOverlayClickToClose(el.fightChallengeModal, closeFightChallengeModal);
+  setupOverlayClickToClose(el.fightResultModal, closeFightResultModal);
 
   buildVillagerDom(); // "직원 확인" 화면의 15명 슬롯(이미지+잠금표시) DOM 생성
 

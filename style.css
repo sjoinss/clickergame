@@ -1,23 +1,69 @@
-/* ===== 토큰 ===== */
+/* ===== 토큰 =====
+   --accent-*는 설정 > 테마 색상에서 고르는 "메인 테마 색"이다(기본값 = 초록).
+   100/300은 밝은 배경·테두리용, 600은 흰 글자를 얹는 버튼/활성 탭용, 800/900은 그라디언트
+   하단·그림자용 — 전부 흰 글자 기준 WCAG AA(4.5:1)를 만족하는 선에서 최대한 채도 높은(생기 있는)
+   톤을 골랐다(단순히 어둡게만 누르면 칙칙해지므로, "어둡되 선명한" 색을 우선했다).
+   테마 전환 시 [data-theme="..."] 블록이 --accent-*와 --cream/--paper(페이지 배경)까지 함께
+   바꿔서, 버튼뿐 아니라 배경 톤(웜/쿨)까지 자연스럽게 맞춰진다. #main-stage의 Stage1 배경도
+   --accent-100/300을 그대로 쓴다(.stage-bg.stage-1 참고) — 그 다음 Stage(2~5)는 이야기 진행에
+   따른 고유 배경(초원→가을→사막→하늘→밤)이라 테마와 무관하게 유지했다.
+   --berry(도박/위험 강조)와 --clay(경고·강화 버튼)는 테마와 무관하게 고정 — 사용자가 고른
+   메인 테마 색과 섞이면 오히려 의미가 헷갈리기 때문이다. */
 :root {
   --cream: #FFF8EE;
-  --moss-100: #EAF3E0;
-  --moss-300: #C9E4B4;
-  --moss-600: #6FA351;
-  --moss-800: #3F6B2E;
-  --clay: #E8935E;
-  --clay-dark: #C97140;
-  --berry: #E8697B;
+  --accent-100: #EAF3E0;
+  --accent-300: #C9E4B4;
+  --accent-600: #438033;
+  --accent-800: #2E5321;
+  --accent-900: #1F3A17;
+  --clay: #B84E12;
+  --clay-dark: #8A3B0E;
+  --clay-darkest: #652B0A;
+  --berry: #C93A5F;
+  --berry-dark: #A32C4C;
+  --berry-darkest: #742238;
   --ink: #3E3226;
-  --ink-soft: #8A7A68;
+  --ink-soft: #7D6E5C;
   --paper: #FFFCF6;
   --gold: #F0B93E;
   --shadow: 0 4px 14px rgba(63, 46, 21, 0.12);
-  --radius-lg: 26px;
-  --radius-md: 18px;
-  --radius-sm: 12px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
   --font-display: "Jua", "Gaegu", "Nanum Gothic", sans-serif;
   --font-body: "Gaegu", "Nanum Gothic", -apple-system, sans-serif;
+}
+
+/* 8가지 테마 색상. 각 600은 흰 글자 기준 대비 4.5:1 이상을 확인하고 그 안에서 가장 선명한 톤을
+   골랐다. 쿨톤(하늘색/남색/보라색/흑백)은 페이지 배경도 살짝 차갑게, 웜톤(빨간색/분홍색/주황색)은
+   살짝 더 따뜻하게 틀어서 버튼만 튀지 않고 전체 분위기가 같이 맞춰지게 했다. */
+[data-theme="sky"] {
+  --cream: #F2F6FA; --paper: #FAFCFE;
+  --accent-100: #DCEBF4; --accent-300: #A1C9E1; --accent-600: #1478B5; --accent-800: #0F5A88; --accent-900: #0B4264;
+}
+[data-theme="navy"] {
+  --cream: #F0F2F8; --paper: #F9FAFD;
+  --accent-100: #E0E3EF; --accent-300: #ABB4D4; --accent-600: #2E4494; --accent-800: #23336F; --accent-900: #192551;
+}
+[data-theme="purple"] {
+  --cream: #F5F1FA; --paper: #FCFAFE;
+  --accent-100: #EDE2F3; --accent-300: #D0B2DF; --accent-600: #8A3FB0; --accent-800: #682F84; --accent-900: #4C2361;
+}
+[data-theme="red"] {
+  --cream: #FFF2EC; --paper: #FFFBF8;
+  --accent-100: #F8E2DD; --accent-300: #EDB3A4; --accent-600: #D1401C; --accent-800: #9D3015; --accent-900: #73230F;
+}
+[data-theme="pink"] {
+  --cream: #FFF1F5; --paper: #FFFAFC;
+  --accent-100: #F6E2EA; --accent-300: #E7B1C7; --accent-600: #C23B72; --accent-800: #922C56; --accent-900: #6B203F;
+}
+[data-theme="orange"] {
+  --cream: #FFF2E8; --paper: #FFFBF7;
+  --accent-100: #F4E4DB; --accent-300: #E3B8A0; --accent-600: #B84E12; --accent-800: #8A3B0E; --accent-900: #652B0A;
+}
+[data-theme="mono"] {
+  --cream: #F1F1F1; --paper: #FAFAFA;
+  --accent-100: #E4E4E4; --accent-300: #B7B7B7; --accent-600: #4A4A4A; --accent-800: #383838; --accent-900: #292929;
 }
 
 @font-face {
@@ -26,6 +72,60 @@
 }
 
 * { box-sizing: border-box; }
+
+/* 키보드 포커스 표시 — 마우스 클릭 시에는 안 보이고(:focus-visible), 탭 이동 시에만 뚜렷하게 보인다 */
+:focus-visible {
+  outline: 3px solid var(--accent-600);
+  outline-offset: 2px;
+}
+
+/* 커스텀 스크롤바 — 브라우저 기본 회색 스크롤바 대신 페이지 톤(테마 색상)에 맞춘 얇은 스크롤바.
+   스크롤 영역이 새로 생길 때마다 이 선택자 목록에 추가한다. */
+#content-area,
+.achievement-list,
+.payout-list,
+.custom-gallery-modal-box,
+.custom-target-list,
+.custom-edit-modal-box {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--accent-300) transparent; /* Firefox */
+}
+#content-area::-webkit-scrollbar,
+.achievement-list::-webkit-scrollbar,
+.payout-list::-webkit-scrollbar,
+.custom-gallery-modal-box::-webkit-scrollbar,
+.custom-target-list::-webkit-scrollbar,
+.custom-edit-modal-box::-webkit-scrollbar {
+  width: 8px;
+}
+#content-area::-webkit-scrollbar-track,
+.achievement-list::-webkit-scrollbar-track,
+.payout-list::-webkit-scrollbar-track,
+.custom-gallery-modal-box::-webkit-scrollbar-track,
+.custom-target-list::-webkit-scrollbar-track,
+.custom-edit-modal-box::-webkit-scrollbar-track {
+  background: transparent;
+}
+#content-area::-webkit-scrollbar-thumb,
+.achievement-list::-webkit-scrollbar-thumb,
+.payout-list::-webkit-scrollbar-thumb,
+.custom-gallery-modal-box::-webkit-scrollbar-thumb,
+.custom-target-list::-webkit-scrollbar-thumb,
+.custom-edit-modal-box::-webkit-scrollbar-thumb {
+  background: var(--accent-300);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+#content-area::-webkit-scrollbar-thumb:hover,
+.achievement-list::-webkit-scrollbar-thumb:hover,
+.payout-list::-webkit-scrollbar-thumb:hover,
+.custom-gallery-modal-box::-webkit-scrollbar-thumb:hover,
+.custom-target-list::-webkit-scrollbar-thumb:hover,
+.custom-edit-modal-box::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-600);
+  background-clip: padding-box;
+}
 
 html, body {
   height: 100%;
@@ -67,14 +167,13 @@ html, body {
   transition: background 0.6s ease;
 }
 
-.stage-bg.stage-1 { background: linear-gradient(180deg, #DCEFCB 0%, #C9E4B4 55%, #B8DAA0 100%); }
+/* Stage1(시작 단계)만 테마 색상을 그대로 따른다 — 플레이어가 가장 오래 보는 배경이라
+   테마를 바꾸면 바로 체감되게 하려는 의도. Stage2~5는 이야기 진행용 고유 배경이라 고정. */
+.stage-bg.stage-1 { background: linear-gradient(180deg, var(--accent-100) 0%, var(--accent-300) 100%); }
 .stage-bg.stage-2 { background: linear-gradient(180deg, #FDF0C4 0%, #F8E29B 55%, #F0D37E 100%); }
 .stage-bg.stage-3 { background: linear-gradient(180deg, #FBDDBE 0%, #F6C79A 55%, #EFB27B 100%); }
 .stage-bg.stage-4 { background: linear-gradient(180deg, #D4E7F5 0%, #B9D9EF 55%, #9FC9E6 100%); }
 .stage-bg.stage-5 { background: linear-gradient(180deg, #E4D9F2 0%, #D2C0EA 55%, #C0A8E0 100%); }
-
-/* 도박에서 정상우 당첨 시: Stage가 몇 단계든 상관없이 배경만 갈색 계열로 전환 (캐릭터 단계는 유지) */
-.stage-bg.debtor-mode { background: linear-gradient(180deg, #D8C6AE 0%, #C2A87F 55%, #A88B5C 100%); }
 
 /* 배경 이미지 레이어: #main-stage 전체를 덮되, .stage-bg의 그라디언트보다 위에 그려진다.
    onerror로 로드 실패 시 hidden 처리되므로, 이미지가 없으면 자연스럽게 그라디언트만 보인다. */
@@ -121,7 +220,7 @@ html, body {
   gap: 3px;
   font-family: var(--font-display);
   font-size: 20px;
-  color: var(--moss-800);
+  color: var(--accent-800);
   text-shadow: 0 2px 0 rgba(255,255,255,0.7), 0 0 4px rgba(255,255,255,0.6);
   animation: popup-float 0.9s ease-out forwards;
   white-space: nowrap;
@@ -225,22 +324,8 @@ html, body {
   display: none;
 }
 
-/* 팔 흔들기 애니메이션: char-svg-debtor(도박 캐릭터 폴백 SVG)에만 적용된다.
-   char-svg-normal은 <img>로 바뀌어 내부에 #arm-right 같은 개별 파츠가 없으므로 대상에서 제외했다. */
-#char-svg-debtor #arm-right-2 {
-  transform-origin: 138px 122px;
-}
-#main-character.bounce #char-svg-debtor #arm-right-2 {
-  animation: arm-swing 0.28s ease;
-}
-@keyframes arm-swing {
-  0%   { transform: rotate(15deg); }
-  40%  { transform: rotate(55deg); }
-  100% { transform: rotate(15deg); }
-}
-
 /* ===== ② 목표(빚) 진행바: 메인 스테이지 위, 완전 투명 배경 + 두꺼운 바 =====
-   라벨("디디의 빚")은 바 위쪽 바깥에 배치해 게이지를 가리지 않는다.
+   라벨("목표 금액")은 바 위쪽 바깥에 배치해 게이지를 가리지 않는다.
    바 안에는 "남은 빚" 금액을 텍스트로 보여줘서, 채워질수록 빚을 갚고 있다는
    게(빚이 쌓이는 게 아니라) 명확히 전달되도록 한다. */
 #goal-panel {
@@ -278,7 +363,7 @@ html, body {
 .goal-progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--moss-600), var(--gold));
+  background: linear-gradient(90deg, var(--accent-600), var(--gold));
   border-radius: 999px;
   transition: width 0.4s ease;
   box-shadow: 0 0 8px rgba(240, 185, 62, 0.6);
@@ -319,7 +404,7 @@ html, body {
 .achievement-btn:active { transform: scale(0.92); }
 
 /* "맞다이 신청" 버튼: 트로피(우측 하단)와 같은 가로 선상, 왼쪽 끝.
-   정상우 모드 + Stage 5일 때만 나타난다(평소엔 hidden). */
+   캐릭터2 모드 + Stage 5일 때만 나타난다(평소엔 hidden). */
 .fight-challenge-btn {
   position: absolute;
   left: 12px;
@@ -329,7 +414,7 @@ html, body {
   padding: 0 14px;
   border-radius: 999px;
   border: 2px solid rgba(255,255,255,0.85);
-  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  background: linear-gradient(180deg, var(--berry), var(--berry-dark));
   color: #fff;
   font-family: var(--font-display);
   font-size: 13px;
@@ -417,7 +502,7 @@ html, body {
   padding: 9px 12px;
   border-radius: var(--radius-sm);
   background: var(--cream);
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
 }
 .achievement-row.locked {
   opacity: 0.55;
@@ -458,7 +543,7 @@ html, body {
   justify-content: space-between;
   padding: 8px 20px;
   background: var(--paper);
-  border-bottom: 2px solid var(--moss-100);
+  border-bottom: 2px solid var(--accent-100);
 }
 .current-money-label {
   font-size: 12px;
@@ -468,7 +553,7 @@ html, body {
 .current-money-value {
   font-family: var(--font-display);
   font-size: 22px;
-  color: var(--moss-800);
+  color: var(--accent-800);
 }
 
 /* ===== ③ 상단 3개 메인 탭 ===== */
@@ -477,7 +562,7 @@ html, body {
   display: flex;
   gap: 4px;
   padding: 10px 8px;
-  background: var(--moss-100);
+  background: var(--accent-100);
 }
 
 .tab-btn {
@@ -500,7 +585,7 @@ html, body {
 }
 .tab-btn:active { transform: scale(0.96); }
 .tab-btn.active {
-  background: var(--moss-600);
+  background: var(--accent-600);
   color: #fff;
   box-shadow: var(--shadow);
 }
@@ -510,12 +595,12 @@ html, body {
 }
 
 .tab-btn-gamble {
-  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  background: linear-gradient(180deg, var(--berry), var(--berry-dark));
   color: #fff;
   flex: 0.9;
 }
 .tab-btn-gamble.active {
-  background: linear-gradient(180deg, #D8536A, #B03B4F);
+  background: linear-gradient(180deg, var(--berry-dark), var(--berry-darkest));
 }
 
 .tab-btn-settings {
@@ -555,7 +640,7 @@ html, body {
   border-radius: var(--radius-lg);
   padding: 18px;
   box-shadow: var(--shadow);
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
 }
 
 .upgrade-header {
@@ -567,7 +652,7 @@ html, body {
 
 .upgrade-icon {
   font-size: 30px;
-  background: var(--moss-100);
+  background: var(--accent-100);
   width: 48px;
   height: 48px;
   border-radius: 14px;
@@ -597,7 +682,7 @@ html, body {
 }
 
 .stat-box {
-  background: var(--moss-100);
+  background: var(--accent-100);
   border-radius: var(--radius-sm);
   padding: 9px 6px;
   text-align: center;
@@ -605,7 +690,7 @@ html, body {
 .stat-label {
   display: block;
   font-size: 10px;
-  color: var(--moss-800);
+  color: var(--accent-800);
   font-weight: 700;
   margin-bottom: 3px;
 }
@@ -628,12 +713,12 @@ html, body {
   align-items: center;
   gap: 2px;
   cursor: pointer;
-  box-shadow: 0 4px 0 #A85B32;
+  box-shadow: 0 4px 0 var(--clay-darkest);
   transition: transform 0.08s, box-shadow 0.08s;
 }
 .upgrade-btn:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #A85B32;
+  box-shadow: 0 1px 0 var(--clay-darkest);
 }
 .upgrade-btn:disabled {
   background: #D8D0C4;
@@ -683,14 +768,14 @@ html, body {
   background: var(--paper);
   font-size: 20px;
   cursor: pointer;
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   transition: transform 0.1s, border-color 0.15s, background 0.15s;
   position: relative;
 }
 .theme-btn:active { transform: scale(0.94); }
 .theme-btn.active {
-  background: var(--moss-100);
-  border-color: var(--moss-600);
+  background: var(--accent-100);
+  border-color: var(--accent-600);
 }
 .theme-btn.locked {
   opacity: 0.45;
@@ -717,7 +802,7 @@ html, body {
   border-radius: var(--radius-lg);
   padding: 18px;
   box-shadow: var(--shadow);
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -729,7 +814,7 @@ html, body {
   width: 84px;
   height: 84px;
   border-radius: 50%;
-  background: var(--moss-100);
+  background: var(--accent-100);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -766,7 +851,7 @@ html, body {
   font-size: 13px;
   color: var(--ink-soft);
   padding: 6px 4px;
-  border-bottom: 1px solid var(--moss-100);
+  border-bottom: 1px solid var(--accent-100);
 }
 .hire-stat-row strong {
   color: var(--ink);
@@ -778,18 +863,18 @@ html, body {
   width: 100%;
   border: none;
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, var(--moss-600), var(--moss-800));
+  background: linear-gradient(180deg, var(--accent-600), var(--accent-800));
   color: #fff;
   padding: 12px;
   font-family: var(--font-display);
   font-size: 15px;
   cursor: pointer;
-  box-shadow: 0 4px 0 #2E5321;
+  box-shadow: 0 4px 0 var(--accent-900);
   transition: transform 0.08s, box-shadow 0.08s;
 }
 .hire-btn:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #2E5321;
+  box-shadow: 0 1px 0 var(--accent-900);
 }
 .hire-btn:disabled {
   background: #D8D0C4;
@@ -797,8 +882,8 @@ html, body {
   cursor: not-allowed;
 }
 .hire-btn.hired {
-  background: var(--moss-100);
-  color: var(--moss-800);
+  background: var(--accent-100);
+  color: var(--accent-800);
   box-shadow: none;
   cursor: default;
 }
@@ -824,7 +909,7 @@ html, body {
   padding: 36px 20px;
   text-align: center;
   box-shadow: var(--shadow);
-  border: 2px dashed var(--moss-300);
+  border: 2px dashed var(--accent-300);
 }
 .theme-locked-icon {
   font-size: 36px;
@@ -853,7 +938,7 @@ html, body {
   background: var(--paper);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   position: relative; /* +금액 팝업 기준점 */
   overflow: hidden;
 }
@@ -874,7 +959,7 @@ html, body {
 .villager-visual {
   position: relative;
   height: 170px; /* 기존 220px에서 축소 */
-  background: linear-gradient(180deg, var(--moss-100), var(--moss-300));
+  background: linear-gradient(180deg, var(--accent-100), var(--accent-300));
   display: flex;
   align-items: flex-end; /* 캐릭터를 하단 쪽으로 붙여서, 위쪽에 말풍선이 들어갈 공간을 남긴다 */
   justify-content: center;
@@ -1099,7 +1184,7 @@ html, body {
   position: absolute;
   inset: 0;
   z-index: 5; /* 이름배지(4)보다는 위, 말풍선(같은 슬롯에서 동시에 안 뜨므로 큰 의미 없음)과 비슷한 최상단 */
-  background: rgba(40, 34, 26, 0.55); /* 이전보다 살짝 옅게 해서 뒤의 이름표/캐릭터가 은은하게 비치도록 */
+  background: rgba(40, 34, 26, 0.7); /* 흰 글자 대비(WCAG AA 4.5:1)를 확보하면서도 뒤 캐릭터가 은은하게 비치는 선 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1194,7 +1279,7 @@ html, body {
   justify-content: center;
   gap: 4px;
   padding: 0;
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   border-radius: var(--radius-md);
   background: var(--paper);
   cursor: pointer;
@@ -1264,11 +1349,11 @@ html, body {
   transform: translate(-50%, 0);
   font-family: var(--font-display);
   font-size: 15px;
-  color: var(--moss-800);
+  color: var(--accent-800);
   background: var(--paper);
   padding: 10px 16px;
   border-radius: 999px;
-  border: 2px solid var(--moss-300);
+  border: 2px solid var(--accent-300);
   box-shadow: 0 4px 12px rgba(0,0,0,0.18);
   white-space: nowrap;
   pointer-events: none;
@@ -1276,8 +1361,8 @@ html, body {
   animation: gamble-popup-float 1.6s ease-out forwards;
 }
 .gamble-result-popup.win {
-  color: var(--moss-800);
-  border-color: var(--moss-600);
+  color: var(--accent-800);
+  border-color: var(--accent-600);
 }
 .gamble-result-popup.lose {
   color: var(--clay-dark);
@@ -1298,11 +1383,11 @@ html, body {
 }
 
 #spin-btn {
-  background: linear-gradient(180deg, var(--berry), #C94A5E);
-  box-shadow: 0 4px 0 #9E3549;
+  background: linear-gradient(180deg, var(--berry), var(--berry-dark));
+  box-shadow: 0 4px 0 var(--berry-dark);
 }
 #spin-btn:active {
-  box-shadow: 0 1px 0 #9E3549;
+  box-shadow: 0 1px 0 var(--berry-dark);
 }
 #spin-btn:disabled {
   background: #D8D0C4;
@@ -1332,7 +1417,7 @@ html, body {
   border-radius: var(--radius-lg);
   padding: 18px;
   box-shadow: var(--shadow);
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   margin-bottom: 14px;
 }
 
@@ -1359,9 +1444,9 @@ html, body {
 .speed-btn {
   flex: 1;
   padding: 12px 4px;
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   border-radius: var(--radius-sm);
-  background: var(--moss-100);
+  background: var(--accent-100);
   color: var(--ink);
   font-family: var(--font-display);
   font-size: 15px;
@@ -1371,9 +1456,9 @@ html, body {
 }
 .speed-btn:active { transform: scale(0.96); }
 .speed-btn.active {
-  background: var(--moss-600);
+  background: var(--accent-600);
   color: #fff;
-  border-color: var(--moss-800);
+  border-color: var(--accent-800);
 }
 .speed-btn.locked {
   background: #ECE9E2;
@@ -1398,7 +1483,7 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: 12px;
-  background: var(--moss-100);
+  background: var(--accent-100);
   border-radius: var(--radius-sm);
 }
 
@@ -1438,17 +1523,17 @@ html, body {
   white-space: nowrap;
 }
 .slot-btn-save {
-  background: var(--moss-600);
+  background: var(--accent-600);
   color: #fff;
 }
 .slot-btn-load {
   background: var(--paper);
-  color: var(--moss-800);
-  border: 1.5px solid var(--moss-600);
+  color: var(--accent-800);
+  border: 1.5px solid var(--accent-600);
 }
 .slot-btn-load:disabled {
   color: var(--ink-soft);
-  border-color: var(--moss-300);
+  border-color: var(--accent-300);
   cursor: not-allowed;
 }
 
@@ -1462,16 +1547,16 @@ html, body {
   padding: 12px;
   border: none;
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, var(--berry), #C94A5E);
+  background: linear-gradient(180deg, var(--berry), var(--berry-dark));
   color: #fff;
   font-family: var(--font-display);
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 4px 0 #9E3549;
+  box-shadow: 0 4px 0 var(--berry-dark);
 }
 .danger-btn:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #9E3549;
+  box-shadow: 0 1px 0 var(--berry-dark);
 }
 
 /* 초기화 확인 모달 */
@@ -1522,7 +1607,7 @@ html, body {
   cursor: pointer;
 }
 .modal-btn-cancel {
-  background: var(--moss-100);
+  background: var(--accent-100);
   color: var(--ink);
 }
 .modal-btn-danger {
@@ -1530,7 +1615,7 @@ html, body {
   color: #fff;
 }
 .modal-btn-primary {
-  background: linear-gradient(180deg, var(--moss-600), var(--moss-800));
+  background: linear-gradient(180deg, var(--accent-600), var(--accent-800));
   color: #fff;
 }
 
@@ -1580,9 +1665,9 @@ html, body {
 /* 설정 탭 안의 공용 작은 버튼 (내보내기/가져오기, 이미지 기본으로 되돌리기 등) */
 .settings-btn {
   padding: 10px 14px;
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   border-radius: var(--radius-sm);
-  background: var(--moss-100);
+  background: var(--accent-100);
   color: var(--ink);
   font-family: var(--font-display);
   font-size: 13px;
@@ -1590,12 +1675,55 @@ html, body {
   transition: background 0.15s;
 }
 .settings-btn:hover {
-  background: var(--moss-300);
+  background: var(--accent-300);
 }
 .settings-btn-small {
   padding: 6px 10px;
   font-size: 11.5px;
   flex-shrink: 0;
+}
+
+/* 설정 탭의 테마 색상 스와치 그리드 */
+.theme-color-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+.theme-color-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.theme-color-btn.active {
+  border-color: var(--ink);
+}
+.theme-color-swatch {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.7);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+}
+.swatch-green  { background: #438033; }
+.swatch-sky    { background: #1478B5; }
+.swatch-navy   { background: #2E4494; }
+.swatch-purple { background: #8A3FB0; }
+.swatch-red    { background: #D1401C; }
+.swatch-pink   { background: #C23B72; }
+.swatch-orange { background: #B84E12; }
+.swatch-mono   { background: #4A4A4A; }
+
+#custom-gallery-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
 }
 
 .custom-io-row {
@@ -1607,47 +1735,112 @@ html, body {
   flex: 1;
 }
 
-/* 설정 탭의 "커스텀 대상" 목록 (메인 캐릭터 + 주민 15명) — 스크롤 가능한 세로 목록 */
-.custom-target-list {
+/* 이미지 커스텀 그리드 모달: 다른 모달보다 넓게 잡아서 3열이 편하게 들어가게 한다.
+   박스 자신은 overflow:hidden으로 두고 안쪽 .custom-gallery-scroll-body만 스크롤하게 해서,
+   둥근 모서리 안쪽으로 스크롤 영역이 깔끔하게 클리핑되게 한다(스크롤바가 모서리 밖으로
+   삐져나오는 문제 방지). */
+.custom-gallery-modal-box {
+  max-width: 400px;
+  max-height: 85vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 240px;
+}
+.custom-gallery-scroll-body {
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 4px;
+  margin-right: -4px;
+}
+.custom-gallery-modal-box .modal-actions {
+  margin-top: 14px;
+  flex-shrink: 0;
+}
+
+/* 이미지 커스텀 그리드 (캐릭터 2 + 직원 15 + 테마 5 = 22개, 섹션 구분 헤더 포함) — 3열 */
+.custom-target-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
   margin-top: 10px;
-  padding-right: 2px;
+}
+.custom-target-group-label {
+  grid-column: 1 / -1;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--accent-800);
+  margin: 10px 0 -2px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--accent-100);
+}
+.custom-target-group-label:first-child {
+  margin-top: 0;
 }
 .custom-target-btn {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border: 2px solid var(--moss-100);
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 4px;
+  border: 2px solid var(--accent-100);
   border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 13.5px;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 .custom-target-btn:hover {
-  border-color: var(--moss-300);
+  border-color: var(--accent-300);
 }
 .custom-target-btn.has-custom {
-  border-color: var(--moss-600);
-  background: var(--moss-100);
+  border-color: var(--accent-600);
+  background: var(--accent-100);
+}
+.custom-target-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.custom-target-name {
+  font-size: 11px;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.custom-target-btn.has-custom .custom-target-name {
   font-family: var(--font-display);
-  color: var(--moss-800);
+  color: var(--accent-800);
+}
+.custom-target-check {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 10.5px;
+  color: var(--accent-600);
 }
 
-/* 커스텀 편집 모달: 필드가 많아서 다른 모달보다 넓고, 세로 스크롤을 허용한다 */
+/* 커스텀 편집 모달: 필드가 많아서 다른 모달보다 넓다. 그리드 모달과 같은 이유로
+   박스 자신은 overflow:hidden, 안쪽 .custom-edit-scroll-body만 스크롤한다. */
 .custom-edit-modal-box {
   max-width: 360px;
   max-height: 85vh;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   text-align: left;
+}
+.custom-edit-scroll-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 4px;
+  margin-right: -4px;
 }
 
 .custom-edit-field {
@@ -1671,7 +1864,7 @@ html, body {
 .custom-edit-field select {
   width: 100%;
   padding: 10px 12px;
-  border: 2px solid var(--moss-100);
+  border: 2px solid var(--accent-100);
   border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
@@ -1682,36 +1875,135 @@ html, body {
 .custom-edit-field input[type="text"]:focus,
 .custom-edit-field textarea:focus,
 .custom-edit-field select:focus {
-  outline: none;
-  border-color: var(--moss-600);
+  border-color: var(--accent-600);
 }
 .custom-edit-field textarea {
   resize: vertical;
   font-family: var(--font-body);
   line-height: 1.5;
 }
-.custom-edit-field input[type="file"] {
-  font-size: 12px;
-  flex: 1;
-  min-width: 0;
-}
-
-.custom-edit-image-row {
+/* 캐릭터/배경 이미지 필드 헤더: 라벨 + "레벨(Stage)마다 다르게" 토글을 한 줄에 */
+.custom-edit-field-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.custom-edit-field-header label {
+  margin-bottom: 0;
+}
+/* .custom-edit-field label { display:block } 보다 우선하려면 클래스 2개짜리 선택자가 필요하다
+   (그냥 .custom-edit-toggle만 쓰면 detail이 낮아 display:block에 밀려서 세로로 쌓여버린다). */
+.custom-edit-field-header .custom-edit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.custom-edit-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-600);
+  cursor: pointer;
+}
+.custom-edit-toggle[hidden] {
+  display: none;
+}
+
+/* 업로드 슬롯: 클릭 또는 드래그로 이미지를 올리는 커스텀 드롭존(브라우저 기본 파일 버튼 대체) */
+.custom-edit-image-row {
+  display: block;
+}
+.custom-upload-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+/* .custom-edit-field label { display:block }보다 우선하도록(드롭존도 <label>이라 동일한 문제)
+   .custom-upload-slot .custom-upload-dropzone처럼 클래스 2개로 detail을 높였다. */
+.custom-upload-slot .custom-upload-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 64px;
+  border: 2px dashed var(--accent-300);
+  border-radius: var(--radius-sm);
+  background: var(--accent-100);
+  overflow: hidden;
+  margin-bottom: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+.custom-upload-dropzone:hover {
+  border-color: var(--accent-600);
+}
+.custom-upload-dropzone.dragover {
+  border-color: var(--accent-600);
+  background: var(--accent-300);
+}
+.custom-upload-dropzone.has-image {
+  border-style: solid;
+  border-color: var(--accent-100);
+}
+.custom-upload-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.custom-upload-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.custom-upload-hint {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  text-align: center;
+  padding: 0 6px;
+  line-height: 1.3;
+}
+.custom-upload-preview {
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.custom-upload-clear {
+  align-self: center;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: var(--berry);
+  font-family: var(--font-body);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* 스테이지(레벨)별 업로드 — 3열 그리드로 5칸(Stage 1~5) */
+.custom-edit-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
-.custom-edit-preview {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  border: 2px solid var(--moss-100);
-  flex-shrink: 0;
-  background: var(--moss-100);
-}
-.custom-edit-preview[hidden] {
-  display: none;
+.custom-edit-stage-label {
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  font-family: var(--font-display);
+  color: var(--ink-soft);
+  margin-bottom: 3px;
 }
 
 #custom-edit-error {
