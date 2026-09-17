@@ -86,7 +86,8 @@
 .payout-list,
 .custom-gallery-modal-box,
 .custom-target-list,
-.custom-edit-modal-box {
+.custom-edit-modal-box,
+.fever-helper-scroll-body {
   scrollbar-width: thin; /* Firefox */
   scrollbar-color: var(--accent-300) transparent; /* Firefox */
 }
@@ -95,7 +96,8 @@
 .payout-list::-webkit-scrollbar,
 .custom-gallery-modal-box::-webkit-scrollbar,
 .custom-target-list::-webkit-scrollbar,
-.custom-edit-modal-box::-webkit-scrollbar {
+.custom-edit-modal-box::-webkit-scrollbar,
+.fever-helper-scroll-body::-webkit-scrollbar {
   width: 8px;
 }
 #content-area::-webkit-scrollbar-track,
@@ -103,7 +105,8 @@
 .payout-list::-webkit-scrollbar-track,
 .custom-gallery-modal-box::-webkit-scrollbar-track,
 .custom-target-list::-webkit-scrollbar-track,
-.custom-edit-modal-box::-webkit-scrollbar-track {
+.custom-edit-modal-box::-webkit-scrollbar-track,
+.fever-helper-scroll-body::-webkit-scrollbar-track {
   background: transparent;
 }
 #content-area::-webkit-scrollbar-thumb,
@@ -111,7 +114,8 @@
 .payout-list::-webkit-scrollbar-thumb,
 .custom-gallery-modal-box::-webkit-scrollbar-thumb,
 .custom-target-list::-webkit-scrollbar-thumb,
-.custom-edit-modal-box::-webkit-scrollbar-thumb {
+.custom-edit-modal-box::-webkit-scrollbar-thumb,
+.fever-helper-scroll-body::-webkit-scrollbar-thumb {
   background: var(--accent-300);
   border-radius: 999px;
   border: 2px solid transparent;
@@ -122,7 +126,8 @@
 .payout-list::-webkit-scrollbar-thumb:hover,
 .custom-gallery-modal-box::-webkit-scrollbar-thumb:hover,
 .custom-target-list::-webkit-scrollbar-thumb:hover,
-.custom-edit-modal-box::-webkit-scrollbar-thumb:hover {
+.custom-edit-modal-box::-webkit-scrollbar-thumb:hover,
+.fever-helper-scroll-body::-webkit-scrollbar-thumb:hover {
   background: var(--accent-600);
   background-clip: padding-box;
 }
@@ -205,6 +210,12 @@ html, body {
 }
 #village-deco::before { left: -8%; }
 #village-deco::after { right: -8%; }
+/* 커스텀 배경 이미지를 넣으면 기본 배경용으로 그려둔 좌우 흰색 언덕 장식이 이미지 위에 어색하게
+   겹쳐 보이므로, 이미지가 있을 때는 숨긴다(applyBackgroundImageOrFallback가 이 클래스를 토글). */
+#main-stage.has-bg-image #village-deco::before,
+#main-stage.has-bg-image #village-deco::after {
+  display: none;
+}
 
 #popup-layer {
   position: absolute;
@@ -245,6 +256,14 @@ html, body {
   0%   { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
   15%  { opacity: 1; transform: translate(-50%, -8px) scale(1.05); }
   100% { opacity: 0; transform: translate(-50%, -58px) scale(1); }
+}
+
+/* 피버타임 중 뜨는 +금액 팝업: 평소보다 조금 더 크고 금색으로 강조해서 "지금 배로 벌고 있다"는
+   느낌을 준다(spawnMoneyPopup의 isFever 인자 참고). */
+.money-popup-fever {
+  font-size: 23px;
+  color: #B8650A;
+  text-shadow: 0 2px 0 rgba(255,255,255,0.85), 0 0 8px rgba(255, 183, 3, 0.7);
 }
 
 /* 관리자 전용 히든 커맨드 안내: 메인 캐릭터 영역 중앙에 잠깐 떴다 사라짐 */
@@ -322,10 +341,12 @@ html, body {
 
 .char-svg {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  /* width/height를 100%로 고정하고 object-fit:contain으로 비율을 맞춘다 — max-width/max-height +
+     width/height:auto 조합은 "박스보다 큰 이미지를 줄이는" 것만 되고 "작은 이미지를 박스에 맞게
+     키우는" 건 안 돼서, 원본 해상도가 작은 업로드 이미지가 실제보다 작게(원본 그대로) 보이는
+     문제가 있었다 — 100% + contain은 크든 작든 항상 박스에 맞게 채운다. */
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   /* 배경이 투명한 업로드 이미지 주변에 흰 테두리(스티커 느낌)를 준다. 일반 border는 이미지의
      사각형 박스 전체를 감싸서 투명 배경까지 네모나게 테두리가 생기므로, 실제 그려진(불투명)
@@ -346,10 +367,10 @@ html, body {
   display: none;
 }
 
-/* ===== ② 목표(빚) 진행바: 메인 스테이지 위, 완전 투명 배경 + 두꺼운 바 =====
+/* ===== ② 목표 금액 진행바: 메인 스테이지 위, 완전 투명 배경 + 두꺼운 바 =====
    라벨("목표 금액")은 바 위쪽 바깥에 배치해 게이지를 가리지 않는다.
-   바 안에는 "남은 빚" 금액을 텍스트로 보여줘서, 채워질수록 빚을 갚고 있다는
-   게(빚이 쌓이는 게 아니라) 명확히 전달되도록 한다. */
+   바 안에는 "목표까지 남은 금액"을 텍스트로 보여줘서, 채워질수록 목표에
+   가까워지고 있다는 게 명확히 전달되도록 한다. */
 #goal-panel {
   position: absolute;
   top: 12px;
@@ -361,13 +382,46 @@ html, body {
   gap: 4px;
 }
 
+/* 라벨("목표 금액") + 배속 버튼을 한 줄에 나란히 둔다. 진행바 자체는 이 줄과 무관하게
+   가로 폭 전체를 그대로 채운다(아래 .goal-progress-track). */
+.goal-panel-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 배속 버튼: 누를 때마다 배속이 순환하고(handleSpeedToggle), 지금 배속 숫자만 짧게 보여준다.
+   라벨과 같은 줄, 같은 높이로 맞춰서 한 선상에 보이게 하고, 완전한 원형(999px) 대신 다른
+   버튼들과 같은 계열의 둥근 사각형(--radius-sm)을 써서 배지가 따로 붕 떠 보이지 않게 했다. */
+.speed-toggle-btn {
+  flex-shrink: 0;
+  height: 30px;
+  min-width: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 2px solid rgba(255,255,255,0.85);
+  background: var(--accent-600);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  transition: transform 0.1s;
+}
+.speed-toggle-btn:active { transform: scale(0.92); }
+
+/* 배속 버튼과 같은 줄, 같은 높이로 보이도록 세로 패딩/글자 크기를 키웠다(예전엔 훨씬 작은
+   장식용 배지였지만, 이제 버튼과 나란히 서는 만큼 시각적 무게를 맞출 필요가 있다). */
 .goal-panel-label {
-  align-self: flex-start;
   background: var(--berry);
   color: #fff;
   font-family: var(--font-display);
-  font-size: 11.5px;
-  padding: 3px 12px;
+  font-size: 13px;
+  padding: 6px 14px;
   border-radius: 999px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.18);
   border: 2px solid rgba(255,255,255,0.85);
@@ -425,7 +479,7 @@ html, body {
 }
 .achievement-btn:active { transform: scale(0.92); }
 
-/* "맞다이 신청" 버튼: 트로피(우측 하단)와 같은 가로 선상, 왼쪽 끝.
+/* "인생한방" 버튼: 트로피(우측 하단)와 같은 가로 선상, 왼쪽 끝.
    캐릭터2 모드 + Stage 5일 때만 나타난다(평소엔 hidden). */
 .fight-challenge-btn {
   position: absolute;
@@ -455,10 +509,120 @@ html, body {
   50% { box-shadow: 0 2px 14px rgba(232, 105, 123, 0.7); }
 }
 
+/* ===== 피버타임 =====
+   활성 중일 때 (1) #main-stage 가장자리에 금색 펄스 글로우, (2) 상단에 배수/남은시간 배너,
+   (3) 메인 캐릭터 좌우로 도우미 직원이 폴짝거리며 등장 — 세 요소가 함께 "지금 특별한
+   시간"이라는 걸 분명히 전달하도록 했다(다른 방치형 게임들의 "버프 타임" 연출 참고). */
+#main-stage.fever-active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8; /* 업적 토스트(7)보다도 위, 화면 전체를 감싸는 연출이라 최상단 */
+  pointer-events: none;
+  box-shadow: inset 0 0 0 6px rgba(255, 183, 3, 0.55), inset 0 0 60px rgba(255, 140, 0, 0.35);
+  animation: fever-glow-pulse 1.1s ease-in-out infinite;
+}
+@keyframes fever-glow-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+.fever-banner {
+  position: absolute;
+  top: 92px; /* goal-panel 아래(진행바+배속 버튼 줄이 피버타임 게이지 줄까지 다 펼쳐진 상태 기준), 업적 토스트(98px)보다 살짝 위 */
+  left: 50%;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(180deg, #FFDD7A, #FF9F43);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-family: var(--font-display);
+  color: #6B3600;
+  box-shadow: 0 4px 16px rgba(255, 140, 0, 0.5);
+  animation: fever-banner-pop 0.35s ease, fever-banner-pulse 1.1s ease-in-out 0.35s infinite;
+  white-space: nowrap;
+}
+.fever-banner[hidden] { display: none; }
+.fever-banner-icon { font-size: 16px; }
+.fever-banner-text { font-size: 13px; font-weight: 700; }
+.fever-banner-multiplier { font-size: 13px; font-weight: 700; }
+.fever-banner-timer {
+  font-size: 11.5px;
+  background: rgba(255,255,255,0.55);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+@keyframes fever-banner-pop {
+  0%   { transform: translateX(-50%) scale(0.5); opacity: 0; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+@keyframes fever-banner-pulse {
+  0%, 100% { transform: translateX(-50%); box-shadow: 0 4px 16px rgba(255, 140, 0, 0.5); }
+  50%      { transform: translateX(-50%); box-shadow: 0 4px 26px rgba(255, 140, 0, 0.85); }
+}
+
+/* 피버타임 도우미(최대 4명, 좌 2/우 2): 메인 캐릭터와 같은 바닥선(bottom)에 나란히 서서
+   폴짝거린다. #main-character보다 살짝 낮은 z-index로 둬서 서로 겹쳐도 캐릭터가 우선 보이게 한다. */
+.fever-helpers {
+  position: absolute;
+  bottom: 6%; /* #main-character의 margin-bottom(6%)과 맞춰서 같은 바닥선에 서게 한다 */
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 4%;
+  pointer-events: none;
+}
+.fever-helpers[hidden] { display: none; }
+/* 업적 버튼/인생한방 버튼(둘 다 좌우 12px, z-index:6)과 겹치지 않도록 안쪽으로 충분히 띄운다 */
+.fever-helpers-left  { left: 9%; }
+.fever-helpers-right { right: 9%; }
+
+.fever-helper {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 17vw;
+  max-width: 78px;
+  animation: fever-helper-hop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  transform-origin: 50% 100%;
+}
+@keyframes fever-helper-hop {
+  0%   { transform: translateY(0) scale(1, 1); }
+  30%  { transform: translateY(0) scale(1.12, 0.85); }
+  55%  { transform: translateY(-16px) scale(0.92, 1.08); }
+  80%  { transform: translateY(0) scale(1.12, 0.85); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+.fever-helper-emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+.fever-helper-emoji[hidden] { display: none; }
+.fever-helper-img {
+  width: 100%;
+  height: auto;
+  max-height: 64px;
+  object-fit: contain;
+  /* 직원 이미지(.villager-character-img)와 같은 두께의 얇은 흰 테두리 */
+  filter:
+    drop-shadow(1px 0 0 #fff)
+    drop-shadow(-1px 0 0 #fff)
+    drop-shadow(0 1px 0 #fff)
+    drop-shadow(0 -1px 0 #fff)
+    drop-shadow(0.7px 0.7px 0 #fff)
+    drop-shadow(-0.7px 0.7px 0 #fff)
+    drop-shadow(0.7px -0.7px 0 #fff)
+    drop-shadow(-0.7px -0.7px 0 #fff);
+}
+.fever-helper-img[hidden] { display: none; }
+
 /* 업적 달성 토스트: 게이지 바로 아래에 잠깐 떴다 사라짐 (마인크래프트 도전과제 느낌) */
 .achievement-toast {
   position: absolute;
-  top: 62px; /* goal-panel 바로 아래 */
+  top: 98px; /* goal-panel 바로 아래 (피버타임 게이지 줄까지 펼쳐진 최대 높이 기준, 배속 버튼 줄만큼 반영) */
   left: 50%;
   z-index: 7;
   display: flex;
@@ -772,6 +936,120 @@ html, body {
   color: var(--ink-soft);
   font-size: 12px;
   margin-top: 12px;
+}
+
+/* 피버타임 강화 카드: 기존 클릭 업그레이드 카드(.upgrade-card) 밑에 나란히 쌓인다.
+   아이콘 배경만 금색 계열로 바꿔서 "다른 종류의 강화"라는 걸 구분되게 한다. */
+.fever-upgrade-card {
+  margin-top: 14px;
+}
+.fever-upgrade-card .upgrade-icon {
+  background: #FFE8B0;
+}
+.fever-upgrade-card .upgrade-btn {
+  background: linear-gradient(180deg, #FFB84D, #FF9420);
+  box-shadow: 0 4px 0 #C96E0A;
+}
+.fever-upgrade-card .upgrade-btn:active {
+  box-shadow: 0 1px 0 #C96E0A;
+}
+
+/* 피버타임 게이지: #goal-panel 안, 목표금액 바로 아래에 늘 보인다(Lv.0 미해금 상태에서만 숨김).
+   평소엔 클릭이 쌓이는 만큼 왼쪽에서 차오르고, 피버타임이 시작되면 반대로 남은 시간만큼
+   줄어든다 — 그 자체로 "무언가 다 차면 터진다"는 걸 보여주면 충분해서 라벨 텍스트는 두지 않는다. */
+.fever-meter-panel[hidden] { display: none; }
+.fever-meter-track {
+  height: 8px;
+  background: rgba(40, 34, 26, 0.28);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
+}
+.fever-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #FFC96B, #FF8C1A);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+/* 피버타임 진행 중엔 색을 더 뜨거운 톤으로 바꾸고, 줄어드는 게 매초 자연스럽게 이어지도록
+   전환 시간을 1초(tick 간격)로 맞춘다. */
+.fever-meter-panel.fever-meter-active .fever-meter-fill {
+  background: linear-gradient(90deg, #FF8C1A, #FF5A3C);
+  transition: width 1s linear;
+}
+
+/* 피버타임 도우미 선택 모달(설정 > 🔥 피버 직원 카드에서 열림): 다른 모달과 같은 이유로
+   박스 자신은 overflow:hidden, 안쪽 .fever-helper-scroll-body만 스크롤한다. */
+.fever-helper-modal-box {
+  max-width: 360px;
+  max-height: 82vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.fever-helper-scroll-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 4px;
+  margin-right: -4px;
+}
+.fever-helper-modal-box .modal-actions {
+  margin-top: 14px;
+  flex-shrink: 0;
+}
+
+/* 15명 전체를 대상으로 "피버타임 출연" 여부를 토글하는 칩 그리드. 고용 여부와 무관하게
+   미리 골라둘 수 있고, 미고용 직원은 흐리게 표시하고 "미고용" 태그를 붙인다. */
+.fever-helper-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.fever-helper-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border: 2px solid var(--accent-100);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  cursor: pointer;
+  font-family: var(--font-display);
+}
+.fever-helper-option.active {
+  border-color: var(--clay);
+  background: #FFF1D6;
+}
+.fever-helper-option.not-hired {
+  opacity: 0.55;
+}
+.fever-helper-option-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+.fever-helper-option-name {
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.fever-helper-option-tag {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 9px;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 999px;
 }
 
 /* ===== 서브탭 공통 (주민 확인 테마탭 / 주민 고용 테마탭) =====
@@ -1184,6 +1462,17 @@ html, body {
   width: auto;
   max-width: 90%;
   object-fit: contain;
+  /* 캐릭터1/캐릭터2(.char-svg)와 같은 방식의 흰 테두리(스티커 느낌)를 얇게(≈1px) 적용한다.
+     두께 계산은 .char-svg와 동일한 비율(정방향 1px, 대각선 1/√2≈0.7px)만 더 얇춘 것. */
+  filter:
+    drop-shadow(1px 0 0 #fff)
+    drop-shadow(-1px 0 0 #fff)
+    drop-shadow(0 1px 0 #fff)
+    drop-shadow(0 -1px 0 #fff)
+    drop-shadow(0.7px 0.7px 0 #fff)
+    drop-shadow(-0.7px 0.7px 0 #fff)
+    drop-shadow(0.7px -0.7px 0 #fff)
+    drop-shadow(-0.7px -0.7px 0 #fff);
 }
 .villager-character-img[hidden] { display: none; }
 
@@ -1244,7 +1533,96 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 48px;
-  margin-bottom: 28px;
+  margin-bottom: 22px;
+}
+
+/* 베팅 금액 + 돌리기 버튼: 룰렛 바로 아래, 서로 가깝게 가운데로 모아서 한 덩어리처럼 보이게
+   한다(예전처럼 화면 양 끝으로 벌어지지 않도록 justify-content:center + 좁은 gap). 화살표는
+   배경/테두리 없는 순수 글리프 버튼이라 장식적인 원형 배지처럼 보이지 않고, 탭 타깃은
+   패딩으로 확보했다. 화살표 클릭/휠 스크롤/좌우 드래그(모바일 스와이프 포함,
+   setupGambleBetDrag)가 전부 같은 동작을 공유한다. 배수 확률은 베팅 금액과 무관하게 항상
+   동일해서, 금액만 커지고 위험/기대수익 비율은 그대로다. */
+.gamble-bet-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+.gamble-bet-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  touch-action: none; /* 드래그 중 브라우저 기본 스크롤/제스처가 끼어들지 않게 */
+  user-select: none;
+  cursor: grab;
+}
+.gamble-bet-stepper:active { cursor: grabbing; }
+.gamble-bet-arrow {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.15s;
+}
+.gamble-bet-arrow:active { transform: scale(0.85); }
+.gamble-bet-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+/* 화살표를 유니코드 삼각형(▶) 대신 CSS로 그려서, 끝이 뾰족하지 않고 둥글게 처리한 모서리
+   (border-radius)를 쓸 수 있게 했다 — 둥근 쉐브론(모서리가 둥근 ‹ › 모양) 느낌. */
+.gamble-bet-chevron {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-style: solid;
+  border-color: var(--accent-600);
+  border-width: 0 3px 3px 0;
+  border-bottom-right-radius: 4px; /* 두 변이 만나는 꼭짓점을 둥글게 */
+}
+.gamble-bet-chevron-right { transform: rotate(-45deg); }
+.gamble-bet-chevron-left { transform: rotate(135deg); }
+.gamble-bet-arrow:disabled .gamble-bet-chevron { border-color: var(--ink-soft); }
+.gamble-bet-amount {
+  min-width: 76px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink);
+}
+
+/* 돌리기 버튼: 베팅 금액 옆에 붙는 컴팩트 버튼 (기존 전체 폭 .upgrade-btn과 같은 색/그림자
+   언어를 쓰되, 이 줄 안에서는 폭을 내용만큼만 차지한다) */
+.spin-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--clay), var(--clay-dark));
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 15px;
+  padding: 11px 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--clay-darkest);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.spin-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--clay-darkest);
+}
+.spin-btn:disabled {
+  background: #D8D0C4;
+  box-shadow: 0 4px 0 #B8AF9F;
+  cursor: not-allowed;
+}
+.spin-btn.shake {
+  animation: btn-shake 0.35s ease;
 }
 
 .wheel-wrap {
@@ -1420,7 +1798,8 @@ html, body {
    줄어들기 때문에 여기서 크기를 강제로 재정의할 필요가 없다. 글자 크기 등
    가독성만 살짝 줄여준다. */
 @media (max-height: 640px) {
-  .goal-panel-label { font-size: 10px; padding: 2px 10px; }
+  .goal-panel-label { font-size: 10px; padding: 4px 10px; }
+  .speed-toggle-btn { height: 24px; min-width: 36px; font-size: 11px; }
   .goal-progress-track { height: 18px; }
   .goal-progress-text { font-size: 10px; }
   #current-money-bar { padding: 6px 14px; }
@@ -1457,40 +1836,31 @@ html, body {
   line-height: 1.4;
 }
 
-/* 배속 선택 */
-.speed-options {
+/* 설정 탭: 카드 두 장을 가로로 나란히 두는 줄 (🔥 피버 직원 / 🎨 커스텀 이미지).
+   좁은 화면에서도 각 카드 안 버튼이 터치하기 충분한 크기를 유지하도록 최소 너비를 두고,
+   그보다 더 좁아지면(작은 폰) 세로로 쌓이게 해서 버튼이 짜부라지지 않게 한다. */
+.settings-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.settings-card-half {
+  flex: 1 1 0;
+  min-width: 132px;
+  margin-bottom: 0;
+}
+@media (max-width: 340px) {
+  .settings-row { flex-direction: column; }
 }
 
-.speed-btn {
-  flex: 1;
-  padding: 12px 4px;
-  border: 2px solid var(--accent-100);
-  border-radius: var(--radius-sm);
-  background: var(--accent-100);
-  color: var(--ink);
-  font-family: var(--font-display);
-  font-size: 15px;
-  cursor: pointer;
-  transition: transform 0.1s, background 0.15s, border-color 0.15s;
-  position: relative;
-}
-.speed-btn:active { transform: scale(0.96); }
-.speed-btn.active {
-  background: var(--accent-600);
-  color: #fff;
-  border-color: var(--accent-800);
-}
-.speed-btn.locked {
-  background: #ECE9E2;
-  color: var(--ink-soft);
-  cursor: not-allowed;
-}
-.speed-btn .speed-lock-icon {
+/* 설정 탭 카드 안에서 가로 폭 전체를 채우는 버튼 — 팝업을 여는 진입점이라 다른 .settings-btn보다
+   여백을 넉넉히 줘서 모바일에서도 누르기 쉬운 탭 타깃(최소 44px 높이)을 확보한다. */
+.settings-btn-block {
   display: block;
-  font-size: 11px;
-  margin-top: 2px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  font-size: 14px;
 }
 
 /* 저장 슬롯 */
@@ -1641,7 +2011,7 @@ html, body {
   color: #fff;
 }
 
-/* 목표 달성(빚 다 갚음) 축하 모달 */
+/* 목표 달성 축하 모달 */
 .victory-modal-box {
   text-align: center;
 }
@@ -1656,7 +2026,7 @@ html, body {
   font-size: 13px;
 }
 
-/* 맞다이 신청 확인/결과 모달 */
+/* 인생한방 확인/결과 모달 */
 .fight-challenge-modal-box,
 .fight-result-modal-box {
   text-align: center;
@@ -1742,19 +2112,19 @@ html, body {
 .swatch-orange { background: #B84E12; }
 .swatch-mono   { background: #4A4A4A; }
 
-#custom-gallery-btn {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-}
-
 .custom-io-row {
   display: flex;
   gap: 8px;
   margin-top: 10px;
+  flex-shrink: 0; /* 갤러리 모달 안에서 스크롤 영역(.custom-gallery-scroll-body)에 밀려 찌그러지지 않게 */
 }
 .custom-io-row .settings-btn {
   flex: 1;
+  min-height: 44px; /* 모바일에서도 누르기 쉬운 탭 타깃 */
+}
+.custom-io-hint {
+  flex-shrink: 0;
+  margin-bottom: 0;
 }
 
 /* 이미지 커스텀 그리드 모달: 다른 모달보다 넓게 잡아서 3열이 편하게 들어가게 한다.

@@ -11,17 +11,28 @@
    --------------------------------------------------------- */
 const CONFIG = {
   // 최종 목표 금액
-  goalMoney: 100000000000,
+  // ※ 밸런스 8차 재조정 (피버타임 추가): 피버타임 도입으로 클릭/직원 수익이 평균적으로
+  //   최대 약 60~70% 더 빨라져서, 기존 목표금액(1000억)을 그대로 두면 전체 플레이 시간이
+  //   눈에 띄게 짧아진다 — 실제로 그리디(최적 ROI) 구매 시뮬레이션을 돌려보니 기존
+  //   1000억 기준 목표 달성 시간이 피버타임 도입만으로 약 2/3로 줄어드는 것을 확인했다.
+  //   목표금액을 3.6배(1000억→3600억)로 올려서 같은 시뮬레이션으로 재검증한 결과, 피버타임을
+  //   포함해도 전체 플레이 시간이 기존과 거의 같은 수준으로 돌아오는 것을 확인했다(클릭
+  //   레벨상한/직원 만렙도 함께 소폭 올려서, 그 늘어난 목표금액을 채우는 동안 레벨업 거리가
+  //   너무 일찍 바닥나 "더 강화할 게 없는" 지루한 구간이 생기지 않게 했다 — click.maxLevel,
+  //   villagerMaxLevelBase/ByIndex 주석 참고).
+  goalMoney: 360000000000,
 
   // "인생한방": 캐릭터2 모드 + Stage 5(최종 단계)일 때만 나타나는 도박성 이벤트.
-  // 참가비를 내고 50% 확률로 (실패) 빚이 2배로 불어나거나, (성공) 빚을 전부 청산한다.
-  // 실패할 때마다 다음 참가비도 함께 2배로 뛰어서 점점 더 위험해지는 구조.
-  // 첫 참가비 10억은 목표금액(178억)의 약 5.6% 수준으로, 5번 연속 실패해도 320억(목표의 약 1.8배) 선에서
-  // 감당 가능한 범위로 설계했다 — 그 이상은 사실상 실패를 각오한 도박이 된다.
+  // 참가비를 내고 70% 확률로 (성공) 지금 가진 돈이 3배로 불어나거나, 30% 확률로 (실패) 목표
+  // 금액이 2배로 불어난다. 실패할 때마다 다음 참가비도 함께 2배로 뛰어서 점점 더 위험해지는 구조.
+  // ※ 밸런스 8차 재조정: 목표금액을 3.6배로 올린 것과 같은 비율로 참가비도 3.6배 올려서,
+  //   "참가비가 목표금액의 약 1%" 비율을 그대로 유지했다.
   fightChallenge: {
-    baseCost: 1000000000, // 첫 참가비 10억원
+    baseCost: 3600000000, // 첫 참가비 36억원
     costMultiplierOnFail: 2, // 실패할 때마다 다음 참가비도 2배
-    successChance: 0.5, // 성공 확률 50%
+    successChance: 0.7, // 성공 확률 70%
+    successMoneyMultiplier: 3, // 성공 시 지금 가진 돈이 이 배수만큼 불어난다
+    failGoalMultiplier: 2, // 실패 시 목표 금액이 이 배수만큼 불어난다
   },
 
   // 클릭 업그레이드: 레벨별 클릭 수익과 다음 레벨 비용을 공식으로 계산
@@ -55,7 +66,12 @@ const CONFIG = {
     baseCost: 10,          // Lv.1 → Lv.2 업그레이드 비용
     costGrowth: 1.115,     // 레벨당 비용 증가 배율 (밸런스 5차: 1.10 -> 1.115로 상향, 레벨업 폭주 방지)
     costMinPerLevel: 8,    // 비용도 레벨당 최소 이만큼씩은 오르도록 하는 하한선 기울기 (수익 하한선과 짝을 맞춤)
-    maxLevel: 150,         // 클릭 레벨 만렙 (밸런스 6차: 숫자 무한 폭주 방지. 최종 스테이지(Stage5) 진입 레벨과 동일)
+    // ※ 밸런스 8차 재조정 (피버타임 추가로 목표금액이 3.6배로 늘어난 것과 짝을 맞춤): 150(=Stage5
+    //   진입 레벨) 그대로면 Stage5에 들어가자마자 클릭 강화가 바로 만렙이 되어 버려서, 늘어난
+    //   목표금액을 채우는 나머지 시간 동안 클릭 강화로는 더 할 게 없어진다. 160으로 10레벨
+    //   늘려서 Stage5 안에서도 당분간 강화를 계속할 수 있게 했다(Stage 전환 문턱값 자체는
+    //   그대로 — 최종 스테이지 진입 시점을 바꾸는 게 아니라 그 안에서의 여유만 늘리는 것).
+    maxLevel: 160,
   },
 
   // 메인 캐릭터 Stage 전환 레벨 (클릭 레벨이 이 값에 도달하면 배경/캐릭터 변화)
@@ -65,14 +81,45 @@ const CONFIG = {
 
   // 배속 설정: ×1은 기본, ×2/×3은 해금 조건을 만족해야 선택 가능
   // 해금 조건은 checkUnlocked(state)가 매번 계산 — 저장값이 아니라 항상 현재 상태 기준으로 판단한다.
+  // 화면 우측 최상단 배속 버튼(#speed-toggle-btn)을 누를 때마다 ×1→×2→×3→×1 순으로 순환하고,
+  // 다음 배속이 잠겨 있으면 lockHint를 안내 팝업(#speed-lock-modal)에 그대로 띄운다(handleSpeedToggle 참고).
   speeds: [
     { value: 1, label: "×1", checkUnlocked: () => true },
-    { value: 2, label: "×2", checkUnlocked: (s) => CONFIG.villagers.every((v) => s.villagers[v.id]?.hired) },
-    { value: 3, label: "×3", checkUnlocked: (s) => CONFIG.villagers.every((v) => (s.villagers[v.id]?.level ?? 1) >= 15) },
+    { value: 2, label: "×2", checkUnlocked: (s) => CONFIG.villagers.every((v) => s.villagers[v.id]?.hired),
+      lockHint: "모든 직원을 고용하면 열려요." },
+    { value: 3, label: "×3", checkUnlocked: (s) => CONFIG.villagers.every((v) => (s.villagers[v.id]?.level ?? 1) >= 15),
+      lockHint: "모든 직원을 Lv.15까지 강화하면 열려요." },
   ],
 
   // 저장 슬롯 개수 (기획서: 정확히 3개)
   saveSlotCount: 3,
+
+  // 피버타임: 클릭을 일정 횟수 모으면 일정 시간 동안 클릭/직원 수익이 전부 n배가 되는 이벤트.
+  // "메인 캐릭터 강화" 탭에서 별도로 강화할 수 있고(강화할수록 배수·지속시간이 함께 늘어남),
+  // 실제 배수 계산은 getFeverMultiplier/getFeverDuration이 레벨 사이를 선형보간한다.
+  // - clicksRequired(200클릭)는 "초당 5클릭" 기준 약 40초에 한 번 발동하는 빈도로 잡았다 —
+  //   너무 자주 터지면 상시 배수처럼 느껴져서 "특별한 이벤트" 느낌이 사라지고, 너무 뜸하면
+  //   존재감이 없어서 실제 여러 배수/지속시간 조합으로 시뮬레이션해보고 고른 값이다.
+  // - 배수는 최소 1.5배(Lv.1) ~ 최대 3배(Lv.5 만렙), 지속시간은 8초 ~ 30초로 늘어난다.
+  //   지속시간·배수 둘 다 상한이 뚜렷한 값이라, 만렙을 굳이 10단계 이상 잘게 쪼갤 필요가
+  //   없다고 판단해 5단계로 줄였다 — 대신 한 레벨의 체감 상승폭은 더 커진다.
+  // - 처음엔 Lv.0(피버타임 자체가 없는 상태)에서 시작하고, 강화를 한 번도 안 하면 클릭을
+  //   아무리 모아도 피버타임이 아예 발동하지 않는다 — "강화해야만 존재하는 기능"으로 설계했다
+  //   (state.feverLevel 참고). Lv.0→Lv.1(해금)에 baseUpgradeCost가 그대로 들어간다.
+  // - 만렙(Lv.5)까지 다 강화하면 피버타임 중엔 평균 실효 수익이 상시 약 2배 안팎까지
+  //   올라가는 걸 확인했다(피버타임 유지 비율 × (배수-1)) — 그만큼을 goalMoney 상향(위 참고)으로
+  //   상쇄했다.
+  fever: {
+    clicksRequired: 200,      // 피버타임 발동에 필요한 누적 클릭 수 (피버타임 중엔 카운트 정지, Lv.0이면 아예 안 쌓임)
+    maxLevel: 5,              // 피버타임 강화 만렙
+    baseDuration: 8,          // Lv.1 지속시간(초)
+    maxDuration: 30,          // 만렙 지속시간(초)
+    baseMultiplier: 1.5,      // Lv.1 배수
+    maxMultiplier: 3,         // 만렙 배수
+    baseUpgradeCost: 500000,  // Lv.0→1(해금) 강화 비용
+    upgradeCostGrowth: 2.2,   // 레벨당 강화 비용 증가 배율
+    helperCount: 4,           // 피버타임 중 메인 캐릭터 옆에 나타나는 직원 수 (좌우 2명씩)
+  },
 
   // 도박(돌림판) 설정
   // ※ 밸런스 5차 재조정 (버그: 기존 weight 조합의 배수 기댓값을 실제로 계산해보니 1.134
@@ -83,7 +130,12 @@ const CONFIG = {
   //   weight를 늘리고 고배수(2/3) weight를 줄여 기댓값을 0.959(회수율 95.9%)로 낮췄다 — "가끔 크게
   //   따는 손맛"은 남기되, 장기적으로는 하는 만큼 손해가 나서 다른 수익 수단을 대체하지 못하게 했다.
   gamble: {
-    spinCost: 10000, // 1회 참가 비용
+    // 베팅 금액 선택지 — 도박 탭에서 화살표(또는 스크롤)로 한 단계씩 오르내리며 고른다
+    // (getGambleBetAmount/handleGambleBetStep 참고). 아래 배수(segments)는 베팅 금액과 무관하게
+    // 항상 같은 비율로 적용되므로(reward = bet * multiplier), 베팅을 올려도 확률/기대수익률
+    // 자체는 그대로 유지되고 액수만 커진다 — 위에서 검증한 회수율 95.9%가 모든 베팅 단계에 동일하게 적용된다.
+    betOptions: [10000, 100000, 1000000, 10000000, 100000000, 1000000000], // 1만/10만/100만/1000만/1억/10억
+    defaultBetIndex: 0, // 처음엔 가장 작은 금액(1만원)부터 시작
 
     // 돌림판 배수 구간 (×0.2 ~ ×5). weight가 클수록 잘 나옴. (총합 1000 기준으로
     // "캐릭터2" 확률을 0.5%까지 정밀하게 표현한다.)
@@ -152,8 +204,12 @@ const CONFIG = {
   //     가정)으로 재검증한 결과 "목표금액 도달 ≈ 66분"으로 원래 설계 의도에 다시 맞춘 것을 확인했다.
   // 이름/이모지는 임시로 붙여둔 것이라 나중에 쉽게 바꿀 수 있다.
   // 이미지 경로도 데이터로만 들고 있고, 실제 에셋이 준비되면 이 값만 교체하면 된다.
-  villagerMaxLevelBase: 30, // 직원 강화 최대 레벨의 "기준값"(첫 직원 토끼 기준). 맞다이 신청 실패로 빚이 늘어날 때마다 이 값도 함께 늘어난다(getVillagerMaxLevel 참고)
-  villagerMaxLevelPerFail: 10, // 맞다이 신청 실패 1회당 상한이 늘어나는 레벨 수
+  // ※ 밸런스 8차 재조정 (피버타임 추가로 목표금액이 3.6배로 늘어난 것과 짝을 맞춤): 기존
+  //   값에서 소폭 늘리되, 만렙 숫자 자체가 "35, 30, 25, 20"처럼 5 단위로 딱 떨어지도록
+  //   4단계 티어로 다시 묶었다(villagerMaxLevelByIndex 참고) — 숫자가 깔끔해야 화면에서
+  //   봤을 때도 "이 직원은 이 정도가 만렙이구나"가 한눈에 들어온다.
+  villagerMaxLevelBase: 35, // 직원 강화 최대 레벨의 "기준값"(첫 직원 토끼 기준). 인생한방 도전 실패로 목표 금액이 늘어날 때마다 이 값도 함께 늘어난다(getVillagerMaxLevel 참고)
+  villagerMaxLevelPerFail: 10, // 인생한방 도전 실패 1회당 상한이 늘어나는 레벨 수
 
   // ※ 밸런스 7차 재조정: "모든 직원이 꼭 1초당 얻는 방식이어야 하는 건 아니다"는 요청에 따라,
   //   AdVenture Capitalist 같은 실제 방치형 게임을 참고해서 도입한 생산 주기 시스템. baseIncome
@@ -171,8 +227,11 @@ const CONFIG = {
 
   // 직원마다 기본 레벨 상한이 다르다 — 후반 직원일수록 상한이 낮아져서(첫 토끼 30 → 마지막
   // 유니콘 15) 만렙까지 강화하는 부담이 점점 줄어드는 구조. villagers 배열 순서와 1:1로 대응한다.
-  // (맞다이 신청 실패 시 늘어나는 보너스는 모든 직원에게 동일하게 +10씩 적용된다.)
-  villagerMaxLevelByIndex: [30, 29, 28, 27, 26, 25, 24, 22, 21, 20, 19, 18, 17, 16, 15],
+  // (인생한방 도전 실패 시 늘어나는 보너스는 모든 직원에게 동일하게 +10씩 적용된다.)
+  // 5단계씩 딱 떨어지는 4개 티어(35 → 30 → 25 → 20)로 묶었다: 첫 직원(35) → 다음 5명(30)
+  // → 다음 4명(25) → 마지막 5명(20). 인생한방 도전 실패 보너스(villagerMaxLevelPerFail)도
+  // 이미 5의 배수(10)라 실패해서 상한이 늘어나도 항상 5의 배수로 유지된다.
+  villagerMaxLevelByIndex: [35, 30, 30, 30, 30, 30, 25, 25, 25, 25, 20, 20, 20, 20, 20],
 
   // 직원별 캐릭터 모션(아직 미정이라 비워두고, 나중에 정해지면 여기만 채우면 된다).
   // 값은 CSS 클래스 이름(예: "motion-bounce", "motion-sway", "motion-float")을 넣으면
@@ -277,6 +336,7 @@ const state = {
   clickLevel: 1,
   isDebtorMode: false, // true면 메인 캐릭터가 "캐릭터2" 모습, 목표 라벨도 전환됨
   isSpinning: false,
+  gambleBetIndex: CONFIG.gamble.defaultBetIndex, // 도박 베팅 금액 단계 (CONFIG.gamble.betOptions의 인덱스)
   currentTheme: "forest", // 직원 확인 화면에 처음 진입 시 자동 선택되는 테마
   speedLevel: 1, // 현재 선택된 배속 (1/2/3)
   hasSeenVictory: false, // 목표 금액 달성 축하 모달을 한 번 봤는지 (계속하기 후 매번 다시 뜨지 않도록)
@@ -288,9 +348,19 @@ const state = {
   debtorEncountered: false, // 캐릭터2 모드에 한 번이라도 진입한 적 있는지 (관리자 모드로 진입해도 인정)
 
   // "인생한방" 관련 상태. goalMoney는 CONFIG의 고정값이 아니라 여기서 관리하는 가변값이다
-  // (실패해서 빚이 2배가 되면 이 값 자체가 늘어난다). fightChallengeFailCount만큼 다음 참가비도 커진다.
+  // (실패해서 목표 금액이 2배가 되면 이 값 자체가 늘어난다). fightChallengeFailCount만큼 다음 참가비도 커진다.
   goalMoney: CONFIG.goalMoney,
-  fightChallengeFailCount: 0, // 맞다이 신청 실패 횟수 (참가비 계산에 쓰임)
+  fightChallengeFailCount: 0, // 인생한방 도전 실패 횟수 (참가비 계산에 쓰임)
+
+  // 피버타임 관련 상태. feverLevel/feverSelectedHelpers는 저장 대상(serializeState 참고),
+  // 나머지(feverClickCount/feverActive/feverRemainingSec/feverHelperIds)는 villagerIncomeTimers와
+  // 같은 이유로 런타임 전용이다 — 게임을 다시 켰을 때 0부터 다시 모으는 게 자연스럽다.
+  feverLevel: 0, // 피버타임 강화 레벨 (배수·지속시간 결정). 0이면 아직 해금 전이라 피버타임 자체가 없다
+  feverSelectedHelpers: [], // 설정에서 직접 고른 "피버타임 도우미" 직원 id들 (최대 CONFIG.fever.helperCount명)
+  feverClickCount: 0, // 피버타임 발동까지 모은 클릭 수 (피버타임 중엔 멈춤)
+  feverActive: false, // 지금 피버타임이 진행 중인지
+  feverRemainingSec: 0, // 피버타임 남은 시간(초)
+  feverHelperIds: [], // 지금 메인 캐릭터 옆에 나와 있는 도우미 직원 id들 (최대 4명)
 
   // 직원별 진행 상태. villagerId → { hired, level }
   // CONFIG.villagers를 기준으로 자동 생성 → 직원을 추가/삭제해도 여기를 따로 손볼 필요 없다.
@@ -480,8 +550,8 @@ function getStage(level) {
   return stage;
 }
 
-// 직원 강화 최대 레벨. 직원마다 기본 상한이 다르고(villagerMaxLevelByIndex), 맞다이 신청에
-// 실패해서 빚이 불어날수록(state.fightChallengeFailCount만큼) 모든 직원에게 동일하게 보너스가 더해진다.
+// 직원 강화 최대 레벨. 직원마다 기본 상한이 다르고(villagerMaxLevelByIndex), 인생한방 도전에
+// 실패해서 목표 금액이 불어날수록(state.fightChallengeFailCount만큼) 모든 직원에게 동일하게 보너스가 더해진다.
 function getVillagerMaxLevel(villagerId) {
   const index = CONFIG.villagers.findIndex((v) => v.id === villagerId);
   const base = index >= 0 ? CONFIG.villagerMaxLevelByIndex[index] : CONFIG.villagerMaxLevelBase;
@@ -541,6 +611,35 @@ function getTotalPassiveIncome() {
   }, 0);
 }
 
+// 피버타임 레벨 → 배수/지속시간. Lv.1(baseMultiplier/baseDuration)과 만렙(maxMultiplier/maxDuration)
+// 사이를 선형보간한다 — 클릭/직원처럼 지수 성장을 쓰지 않는 이유는, 배수·지속시간은 "얼마나
+// 자주 큰 값이 뛰는지"가 아니라 "한도 안에서 조금씩 좋아지는" 감각이 더 어울리는 값이기 때문.
+function getFeverMultiplier(level) {
+  const { baseMultiplier, maxMultiplier, maxLevel } = CONFIG.fever;
+  if (maxLevel <= 1) return baseMultiplier;
+  const t = (level - 1) / (maxLevel - 1);
+  return Math.round((baseMultiplier + (maxMultiplier - baseMultiplier) * t) * 100) / 100;
+}
+function getFeverDuration(level) {
+  const { baseDuration, maxDuration, maxLevel } = CONFIG.fever;
+  if (maxLevel <= 1) return baseDuration;
+  const t = (level - 1) / (maxLevel - 1);
+  return Math.round(baseDuration + (maxDuration - baseDuration) * t);
+}
+
+// 피버타임 레벨 → 다음 레벨 강화 비용. level=0(미해금)이면 해금 비용(baseUpgradeCost 그대로)을
+// 반환한다. 직원 강화비와 동일하게 끝자리를 예쁜 단위로 반올림한다.
+function getFeverUpgradeCost(level) {
+  const { baseUpgradeCost, upgradeCostGrowth } = CONFIG.fever;
+  const raw = Math.round(baseUpgradeCost * Math.pow(upgradeCostGrowth, level));
+  return roundToPrettyUnit(raw);
+}
+
+// 지금 이 순간 적용해야 할 피버타임 배수 (피버타임이 아니면 1배 = 평소와 동일)
+function getCurrentFeverMultiplier() {
+  return state.feverActive ? getFeverMultiplier(state.feverLevel) : 1;
+}
+
 // 특정 테마의 직원 3명이 전부 고용됐는지
 function isThemeFullyHired(themeId) {
   return CONFIG.villagers
@@ -566,7 +665,7 @@ function isThemeUnlocked(themeId) {
 // ※ 밸런스 6차 재조정 (버그: 예전에는 "경(10^16)"이 가장 큰 단위라, 그보다 커지면 뒤 숫자가
 //   "10,000경원", "1,000,000,000경원"처럼 끝없이 길어지는 문제가 있었다 — 클릭 레벨 상한(maxLevel)을
 //   도입해서 정상 플레이로는 이제 이 구간에 도달하지 않지만, 혹시 모를 예외 상황(저장 데이터 조작,
-//   맞다이 연속 실패로 목표금액이 과도하게 커지는 경우 등)에도 화면이 깨지지 않도록 "해(10^20)"
+//   인생한방 연속 실패로 목표금액이 과도하게 커지는 경우 등)에도 화면이 깨지지 않도록 "해(10^20)"
 //   단위를 추가하고, 그마저 넘는 값은 "해" 단위로나마 안전하게 표시되도록 안전장치를 마련했다.)
 function formatMoneyCompact(amount) {
   amount = Math.floor(amount);
@@ -638,6 +737,24 @@ const el = {
   upgradeBtn: document.getElementById("upgrade-btn"),
   upgradeCost: document.getElementById("upgrade-cost"),
 
+  feverLevel: document.getElementById("fever-level"),
+  feverCurrentStat: document.getElementById("fever-current-stat"),
+  feverNextStat: document.getElementById("fever-next-stat"),
+  feverMeterPanel: document.getElementById("fever-meter-panel"),
+  feverMeterFill: document.getElementById("fever-meter-fill"),
+  feverUpgradeBtn: document.getElementById("fever-upgrade-btn"),
+  feverUpgradeCost: document.getElementById("fever-upgrade-cost"),
+  feverBanner: document.getElementById("fever-banner"),
+  feverBannerMultiplier: document.getElementById("fever-banner-multiplier"),
+  feverBannerTimer: document.getElementById("fever-banner-timer"),
+  feverHelpersLeft: document.getElementById("fever-helpers-left"),
+  feverHelpersRight: document.getElementById("fever-helpers-right"),
+  feverHelperOpenBtn: document.getElementById("fever-helper-open-btn"),
+  feverHelperModal: document.getElementById("fever-helper-modal"),
+  feverHelperCloseBtn: document.getElementById("fever-helper-close-btn"),
+  feverHelperOptions: document.getElementById("fever-helper-options"),
+  feverHelperHint: document.getElementById("fever-helper-hint"),
+
   tabButtons: document.querySelectorAll(".tab-btn"),
   tabPanels: document.querySelectorAll(".tab-panel"),
 
@@ -647,17 +764,24 @@ const el = {
   hireThemeTabs: document.getElementById("hire-theme-tabs"),
   hireThemeContent: document.getElementById("hire-theme-content"),
 
+  gambleBetStepper: document.getElementById("gamble-bet-stepper"),
+  gambleBetPrevBtn: document.getElementById("gamble-bet-prev"),
+  gambleBetNextBtn: document.getElementById("gamble-bet-next"),
+  gambleBetAmount: document.getElementById("gamble-bet-amount"),
+
   wheel: document.getElementById("wheel"),
   wheelWrap: document.getElementById("wheel-wrap"),
   spinBtn: document.getElementById("spin-btn"),
-  spinCost: document.getElementById("spin-cost"),
   payoutTableBtn: document.getElementById("payout-table-btn"),
   payoutModal: document.getElementById("payout-modal"),
   payoutList: document.getElementById("payout-list"),
   payoutCloseBtn: document.getElementById("payout-close-btn"),
 
-  speedOptions: document.getElementById("speed-options"),
-  speedHint: document.getElementById("speed-hint"),
+  speedToggleBtn: document.getElementById("speed-toggle-btn"),
+  speedLockModal: document.getElementById("speed-lock-modal"),
+  speedLockTitle: document.getElementById("speed-lock-title"),
+  speedLockDesc: document.getElementById("speed-lock-desc"),
+  speedLockCloseBtn: document.getElementById("speed-lock-close-btn"),
   themeColorOptions: document.getElementById("theme-color-options"),
   saveSlots: document.getElementById("save-slots"),
   resetBtn: document.getElementById("reset-btn"),
@@ -712,6 +836,7 @@ const el = {
   fightChallengeModal: document.getElementById("fight-challenge-modal"),
   fightChallengeTitle: document.getElementById("fight-challenge-title"),
   fightChallengeCost: document.getElementById("fight-challenge-cost"),
+  fightChallengeOdds: document.getElementById("fight-challenge-odds"),
   fightChallengeCancelBtn: document.getElementById("fight-challenge-cancel-btn"),
   fightChallengeConfirmBtn: document.getElementById("fight-challenge-confirm-btn"),
   fightResultModal: document.getElementById("fight-result-modal"),
@@ -755,6 +880,91 @@ function renderClickPanel() {
   el.upgradeCost.textContent = isMaxLevel ? "만렙 달성" : formatMoneyCompact(cost);
 
   el.upgradeBtn.disabled = isMaxLevel || state.money < cost;
+}
+
+// 피버타임 강화 카드(레벨/배수/지속시간/강화비용)를 갱신. 발동까지 남은 충전/피버타임 진행
+// 상태는 항상 화면에 보이는 게이지(renderFeverMeter, #goal-panel 아래)가 대신 보여준다.
+// Lv.0(미해금) 상태에서는 배수/지속시간이 아예 없다(handleClick 참고).
+function renderFeverPanel() {
+  if (!el.feverLevel) return;
+  const isLocked = state.feverLevel <= 0;
+  const isMaxLevel = state.feverLevel >= CONFIG.fever.maxLevel;
+  const nextLevel = state.feverLevel + 1;
+  const nextMult = isMaxLevel ? getFeverMultiplier(state.feverLevel) : getFeverMultiplier(nextLevel);
+  const nextDuration = isMaxLevel ? getFeverDuration(state.feverLevel) : getFeverDuration(nextLevel);
+  const cost = isMaxLevel ? 0 : getFeverUpgradeCost(state.feverLevel);
+
+  el.feverLevel.textContent = isLocked ? "미해금" : `Lv.${state.feverLevel}${isMaxLevel ? " (MAX)" : ""}`;
+  el.feverCurrentStat.textContent = isLocked ? "-" : `×${getFeverMultiplier(state.feverLevel)} · ${getFeverDuration(state.feverLevel)}초`;
+  el.feverNextStat.textContent = isMaxLevel ? "-" : `×${nextMult} · ${nextDuration}초`;
+  el.feverUpgradeCost.textContent = isMaxLevel ? "만렙 달성" : formatMoneyCompact(cost);
+  el.feverUpgradeBtn.disabled = isMaxLevel || state.money < cost;
+}
+
+// 화면에 항상 보이는 피버타임 게이지(#goal-panel 바로 아래). Lv.0(미해금)이면 아예 숨긴다.
+// 평소엔 클릭이 쌓이는 만큼 차오르고(0 → 100%), 피버타임 중엔 반대로 남은 시간 비율만큼
+// 줄어든다 — 숫자/라벨 없이 "차오르다가 터지고, 줄어드는" 움직임 자체로 의미가 전달되게 한다.
+function renderFeverMeter() {
+  if (!el.feverMeterPanel) return;
+  const isLocked = state.feverLevel <= 0;
+  el.feverMeterPanel.hidden = isLocked;
+  if (isLocked) return;
+
+  el.feverMeterPanel.classList.toggle("fever-meter-active", state.feverActive);
+  if (state.feverActive) {
+    const total = getFeverDuration(state.feverLevel);
+    const pct = total > 0 ? Math.max(0, Math.min(100, (state.feverRemainingSec / total) * 100)) : 0;
+    el.feverMeterFill.style.width = `${pct}%`;
+  } else {
+    const pct = Math.min(100, (state.feverClickCount / CONFIG.fever.clicksRequired) * 100);
+    el.feverMeterFill.style.width = `${pct}%`;
+  }
+}
+
+// 화면 상단의 "피버타임!" 배너: 활성 중일 때만 보이고, 배수/남은시간을 매초 갱신한다.
+function renderFeverBanner() {
+  if (!el.feverBanner) return;
+  el.feverBanner.hidden = !state.feverActive;
+  if (state.feverActive) {
+    el.feverBannerMultiplier.textContent = `×${getFeverMultiplier(state.feverLevel)}`;
+    const sec = Math.max(0, Math.ceil(state.feverRemainingSec));
+    el.feverBannerTimer.textContent = `0:${String(sec).padStart(2, "0")}`;
+  }
+  if (el.mainStage) el.mainStage.classList.toggle("fever-active", state.feverActive);
+}
+
+// 도우미 직원 1명의 캐릭터(이미지 또는 이모지) HTML. fever-helper-img에는 캐릭터1/2와 같은
+// 방식(얇은 흰 테두리)을 적용해서 통일감을 준다(style.css 참고).
+function feverHelperVisualHtml(villagerId, delayIndex) {
+  const v = CONFIG.villagers.find((x) => x.id === villagerId);
+  if (!v) return "";
+  const displayName = getDisplayName(v);
+  const displayEmoji = getDisplayEmoji(v);
+  const charImage = getDisplayCharacterImage(v);
+  const delay = (delayIndex * 0.15).toFixed(2);
+  const imgTag = charImage
+    ? `<img class="fever-helper-img" style="animation-delay:${delay}s" src="${charImage}" alt="${displayName}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
+    : "";
+  return `
+    <div class="fever-helper">
+      ${imgTag}
+      <span class="fever-helper-emoji" style="animation-delay:${delay}s" ${imgTag ? "hidden" : ""}>${displayEmoji}</span>
+    </div>
+  `;
+}
+
+// 메인 캐릭터 좌우에 도우미 직원(최대 4명, 좌 2명/우 2명)을 그린다.
+function renderFeverHelpers() {
+  if (!el.feverHelpersLeft || !el.feverHelpersRight) return;
+  const ids = state.feverActive ? state.feverHelperIds : [];
+  // 좌/우에 번갈아 배치한다(0,2번째 → 좌, 1,3번째 → 우) — 4명이 다 나오면 2:2로 딱 맞고,
+  // 그보다 적게 나올 때도 한쪽에 몰리지 않고 양쪽에 고르게 나뉜다.
+  const left = ids.filter((_, i) => i % 2 === 0);
+  const right = ids.filter((_, i) => i % 2 === 1);
+  el.feverHelpersLeft.innerHTML = left.map((id, i) => feverHelperVisualHtml(id, i * 2)).join("");
+  el.feverHelpersRight.innerHTML = right.map((id, i) => feverHelperVisualHtml(id, i * 2 + 1)).join("");
+  el.feverHelpersLeft.hidden = left.length === 0;
+  el.feverHelpersRight.hidden = right.length === 0;
 }
 
 function renderStage() {
@@ -807,7 +1017,10 @@ function applyCharacterImageOrEmoji(imgEl, fallbackEl, src, emoji) {
 }
 
 // 배경 이미지는 이모지 폴백이 없다 — 없으면 #main-stage 자체의 그라디언트(.stage-bg.stage-N)가 보인다.
+// 커스텀 배경 이미지가 있을 때는 #main-stage에 has-bg-image 클래스를 붙여서, 그 이미지 위에
+// 어색하게 겹쳐 보일 수 있는 기본 배경 꾸밈요소(#village-deco의 좌우 흰색 언덕 장식)를 숨긴다.
 function applyBackgroundImageOrFallback(imgEl, src) {
+  if (el.mainStage) el.mainStage.classList.toggle("has-bg-image", !!src);
   if (imgEl.dataset.stageSrc === (src || "")) return;
   imgEl.dataset.stageSrc = src || "";
   if (src) {
@@ -844,8 +1057,11 @@ function applyStageAssets() {
 function renderEconomy() {
   renderMoney();
   renderClickPanel();
+  renderFeverPanel(); // 피버타임 강화 카드도 돈이 바뀔 때마다 버튼 활성화 여부를 함께 갱신
+  renderFeverMeter(); // 클릭마다 충전 게이지가 움직이므로 항상 같이 갱신
   refreshHireButtonStates(); // 돈만 바뀐 경우 카드를 통째로 다시 그리지 않고 버튼 상태만 갱신(깜빡임 방지)
-  renderSpeedOptions(); // 직원 고용/레벨이 배속 해금 조건이라 돈이 바뀔 때마다 같이 확인
+  renderSpeedToggle(); // 직원 고용/레벨이 배속 해금 조건이라 돈이 바뀔 때마다 같이 확인
+  renderGambleBet(); // 베팅 금액 대비 잔액이 부족해지면 스핀 버튼도 함께 잠가야 하므로
   checkAchievements(); // 상태가 바뀔 때마다 새로 달성된 업적이 있는지 확인
 }
 
@@ -854,6 +1070,9 @@ function renderAll() {
   renderStage();
   renderDebtorMode();
   renderSaveSlots();
+  renderFeverBanner();
+  renderFeverHelpers();
+  renderFeverHelperOptions();
 }
 
 /* ---------------------------------------------------------
@@ -871,9 +1090,10 @@ const MONEY_POPUP_COIN_SVG = `
 
 // containerEl 내부(자신의 좌표계)에 +금액 팝업을 띄운다.
 // containerEl은 CSS에서 position: relative/absolute로 기준점 역할을 해야 한다.
-function spawnMoneyPopup(amount, containerEl) {
+// 피버타임 중이면 금색 강조 스타일(money-popup-fever)을 추가로 붙여서 평소 수익과 구분되게 한다.
+function spawnMoneyPopup(amount, containerEl, isFever = false) {
   const popup = document.createElement("div");
-  popup.className = "money-popup";
+  popup.className = isFever ? "money-popup money-popup-fever" : "money-popup";
   popup.innerHTML = `${MONEY_POPUP_COIN_SVG}<span>+${formatMoneyCompact(amount).replace("원", "")}</span>`;
 
   const offsetX = (Math.random() - 0.5) * 60;
@@ -888,17 +1108,100 @@ function spawnMoneyPopup(amount, containerEl) {
    7. 이벤트 처리
    --------------------------------------------------------- */
 function handleClick() {
-  const income = getClickIncome(state.clickLevel);
+  const baseIncome = getClickIncome(state.clickLevel);
+  const income = Math.round(baseIncome * getCurrentFeverMultiplier()); // 항상 정수 지급(프로젝트 컨벤션)
   state.money += income;
 
-  spawnMoneyPopup(income, el.popupLayer);
+  spawnMoneyPopup(income, el.popupLayer, state.feverActive);
 
   // 캐릭터 바운스 모션
   el.mainCharacter.classList.remove("bounce");
   void el.mainCharacter.offsetWidth; // 리플로우로 애니메이션 재시작
   el.mainCharacter.classList.add("bounce");
 
+  // 피버타임 레벨이 0(아직 강화한 적 없음)이면 피버타임 자체가 없는 상태라 클릭이 충전에
+  // 들어가지 않는다. 진행 중일 때도 마찬가지로 멈춘다(끝나자마자 바로 재발동하면 "특별한
+  // 이벤트" 느낌이 사라진다).
+  if (state.feverLevel >= 1 && !state.feverActive) {
+    state.feverClickCount++;
+    if (state.feverClickCount >= CONFIG.fever.clicksRequired) {
+      startFeverTime();
+    }
+  }
+
   renderEconomy(); // 돈이 늘어날 때마다 고용/강화 버튼 활성화 여부도 함께 갱신
+}
+
+/* ---------------------------------------------------------
+   7-1. 피버타임
+   --------------------------------------------------------- */
+
+// 피버타임 도우미로 나올 직원을 고른다.
+// - 설정 > 🔥 피버 직원 팝업에서 "피버타임 출연"을 켜둔 직원 중 지금 고용 중인 직원만 후보가 된다
+//   (미고용 직원은 켜놨어도 나오지 않는다).
+// - 후보가 하나도 없으면(아무도 안 켰거나, 켠 직원이 전부 미고용) 지금 고용 중인 직원 전체를
+//   후보로 대신 쓴다("선택하지 않으면 고용된 직원 중 무작위로 나온다").
+// - 후보가 helperCount(4)명보다 많으면 그중 무작위로 4명만, 4명 이하면 그 인원 그대로 나온다.
+function pickFeverHelpers() {
+  const hiredIds = CONFIG.villagers.filter((v) => state.villagers[v.id]?.hired).map((v) => v.id);
+  if (hiredIds.length === 0) return [];
+
+  const selectedHired = state.feverSelectedHelpers.filter((id) => hiredIds.includes(id));
+  const pool = selectedHired.length > 0 ? selectedHired.slice() : hiredIds.slice();
+
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, CONFIG.fever.helperCount);
+}
+
+function startFeverTime() {
+  state.feverActive = true;
+  state.feverClickCount = 0;
+  state.feverRemainingSec = getFeverDuration(state.feverLevel);
+  state.feverHelperIds = pickFeverHelpers();
+  renderFeverBanner();
+  renderFeverHelpers();
+  renderFeverPanel();
+  renderFeverMeter();
+}
+
+function endFeverTime() {
+  state.feverActive = false;
+  state.feverRemainingSec = 0;
+  state.feverHelperIds = [];
+  renderFeverBanner();
+  renderFeverHelpers();
+  renderFeverPanel();
+  renderFeverMeter();
+}
+
+// 피버타임 진행 상태(발동 전 카운트/활성화/헬퍼 목록)를 전부 초기값으로 되돌린다.
+// (게임 초기화·다른 슬롯 불러오기처럼 "지금 진행 중이던 피버타임"이 의미 없어지는 시점에 사용)
+function resetFeverRuntimeState() {
+  state.feverClickCount = 0;
+  state.feverActive = false;
+  state.feverRemainingSec = 0;
+  state.feverHelperIds = [];
+}
+
+function handleFeverUpgrade() {
+  if (state.feverLevel >= CONFIG.fever.maxLevel) return; // 만렙이면 더 이상 강화 불가
+
+  const cost = getFeverUpgradeCost(state.feverLevel);
+
+  if (state.money < cost) {
+    el.feverUpgradeBtn.classList.remove("shake");
+    void el.feverUpgradeBtn.offsetWidth;
+    el.feverUpgradeBtn.classList.add("shake");
+    return;
+  }
+
+  state.money -= cost;
+  state.feverLevel += 1;
+
+  renderEconomy();
 }
 
 function handleUpgrade() {
@@ -1288,6 +1591,7 @@ function handleHire(villagerId) {
   renderEconomy();
   renderHireThemeContent(); // 고용 성공 시 카드가 "고용하기" -> "레벨/강화" 구조로 바뀌어야 하므로 전체 재생성
   renderVillagers(); // 직원 확인 화면 슬롯의 잠금 표시도 함께 갱신
+  renderFeverHelperOptions(); // 새로 고용한 직원이 설정 > 피버타임 도우미 선택지에도 바로 나타나야 함
 }
 
 function handleVillagerUpgrade(villagerId) {
@@ -1335,6 +1639,7 @@ function startPassiveIncomeLoop() {
   window.setInterval(() => {
     let totalIncome = 0;
     const speed = state.speedLevel;
+    const feverMult = getCurrentFeverMultiplier();
     const isViewingVillagers = document.getElementById("tab-villagers")?.classList.contains("active");
 
     CONFIG.villagers.forEach((v) => {
@@ -1353,17 +1658,31 @@ function startPassiveIncomeLoop() {
       }
       if (villagerIncome === 0) return;
 
+      villagerIncome = Math.round(villagerIncome * feverMult); // 피버타임 중이면 직원 수익도 함께 n배
       totalIncome += villagerIncome;
 
       if (isViewingVillagers) {
         const visual = document.getElementById(`slot-${v.id}`);
-        if (visual) spawnMoneyPopup(villagerIncome, visual);
+        if (visual) spawnMoneyPopup(villagerIncome, visual, state.feverActive);
       }
     });
 
     if (totalIncome > 0) {
       state.money += totalIncome;
       renderEconomy();
+    }
+
+    // 피버타임 진행 중이면 매초 실시간으로 카운트다운한다 — 배속(state.speedLevel)의 영향을
+    // 받지 않는다: 배속은 "돈이 쌓이는 속도"를 위한 장치이지, 짧고 화려한 이벤트인 피버타임의
+    // 지속시간까지 3배속으로 순삭시키면 연출이 거의 안 보이고 끝나버려서 일부러 뺐다.
+    if (state.feverActive) {
+      state.feverRemainingSec -= 1;
+      if (state.feverRemainingSec <= 0) {
+        endFeverTime();
+      } else {
+        renderFeverBanner();
+        renderFeverMeter();
+      }
     }
 
     // 직원 확인 화면을 보고 있을 때, 말풍선 문구가 등록된 고용 직원 중 하나를 가끔 랜덤으로
@@ -1387,6 +1706,69 @@ function startPassiveIncomeLoop() {
 /* ---------------------------------------------------------
    9. 도박(돌림판)
    --------------------------------------------------------- */
+
+// 지금 선택된 베팅 금액 (CONFIG.gamble.betOptions에서 state.gambleBetIndex번째 값)
+function getGambleBetAmount() {
+  return CONFIG.gamble.betOptions[state.gambleBetIndex];
+}
+
+// 베팅 금액 표시 + 화살표 버튼의 양 끝 잠금 상태 갱신. 스핀 중에는 화살표를 눌러도 바뀌지
+// 않도록 handleGambleBetStep에서 막지만, 시각적으로도 비활성 처리해 헷갈리지 않게 한다.
+function renderGambleBet() {
+  if (el.gambleBetAmount) el.gambleBetAmount.textContent = formatMoneyCompact(getGambleBetAmount());
+  if (el.gambleBetPrevBtn) el.gambleBetPrevBtn.disabled = state.isSpinning || state.gambleBetIndex <= 0;
+  if (el.gambleBetNextBtn) {
+    el.gambleBetNextBtn.disabled = state.isSpinning || state.gambleBetIndex >= CONFIG.gamble.betOptions.length - 1;
+  }
+  if (el.spinBtn) el.spinBtn.disabled = state.isSpinning || state.money < getGambleBetAmount();
+}
+
+// direction: -1(낮추기) 또는 +1(높이기). 화살표 클릭/휠 스크롤/좌우 드래그가 모두 공유한다.
+function handleGambleBetStep(direction) {
+  if (state.isSpinning) return; // 스핀 중엔 베팅 금액을 바꿀 수 없다
+  const nextIndex = state.gambleBetIndex + direction;
+  if (nextIndex < 0 || nextIndex >= CONFIG.gamble.betOptions.length) return; // 양 끝에서는 더 안 움직임
+  state.gambleBetIndex = nextIndex;
+  renderGambleBet();
+}
+
+// 베팅 금액을 좌우로 드래그(모바일 스와이프 포함)해서 바꾼다 — Pointer Events라 마우스 드래그도
+// 똑같이 동작한다. DRAG_STEP_PX만큼 가로로 움직일 때마다 한 단계씩 바뀌고, 그만큼씩 기준점을
+// 다시 잡아서 계속 끄는 동안 여러 단계를 연달아 넘길 수 있다(오른쪽으로 끌면 금액이 커진다).
+function setupGambleBetDrag() {
+  if (!el.gambleBetStepper) return;
+  const DRAG_STEP_PX = 32;
+  let dragging = false;
+  let lastX = 0;
+
+  el.gambleBetStepper.addEventListener("pointerdown", (e) => {
+    if (state.isSpinning) return;
+    // 화살표 버튼 위에서 시작한 포인터는 드래그로 가로채지 않는다 — 여기서 포인터를
+    // 캡처해버리면 버튼의 클릭 이벤트가 씹혀서 화살표 탭이 안 먹는 문제가 생긴다.
+    if (e.target.closest(".gamble-bet-arrow")) return;
+    dragging = true;
+    lastX = e.clientX;
+    el.gambleBetStepper.setPointerCapture(e.pointerId);
+  });
+  el.gambleBetStepper.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    // while로 처리: 빠르게 휙 끌어서 한 이벤트에 여러 단계 폭을 한 번에 넘는 경우에도
+    // 전부 반영한다. 양 끝(index가 안 바뀜)에 닿으면 즉시 멈춰서 무한루프를 막는다.
+    let deltaX = e.clientX - lastX;
+    while (Math.abs(deltaX) >= DRAG_STEP_PX) {
+      const dir = deltaX > 0 ? 1 : -1;
+      const prevIndex = state.gambleBetIndex;
+      handleGambleBetStep(dir);
+      lastX += dir * DRAG_STEP_PX;
+      if (state.gambleBetIndex === prevIndex) break;
+      deltaX = e.clientX - lastX;
+    }
+  });
+  const endDrag = () => { dragging = false; };
+  el.gambleBetStepper.addEventListener("pointerup", endDrag);
+  el.gambleBetStepper.addEventListener("pointercancel", endDrag);
+}
+
 const gambleSegments = CONFIG.gamble.segments;
 const totalWeight = gambleSegments.reduce((sum, seg) => sum + seg.weight, 0);
 
@@ -1457,7 +1839,7 @@ function pickGambleSegment() {
 let wheelSpinTotal = 0; // 돌림판이 누적으로 회전한 각도 (계속 같은 방향으로 더 돌게)
 
 function handleSpin() {
-  const cost = CONFIG.gamble.spinCost;
+  const cost = getGambleBetAmount();
 
   if (state.isSpinning) return;
 
@@ -1472,7 +1854,7 @@ function handleSpin() {
   renderEconomy();
 
   state.isSpinning = true;
-  el.spinBtn.disabled = true;
+  renderGambleBet(); // 스핀 버튼 + 베팅 금액 화살표를 함께 잠근다
 
   const target = pickGambleSegment();
 
@@ -1495,7 +1877,7 @@ function handleSpin() {
   window.setTimeout(() => {
     resolveGambleResult(target, cost);
     state.isSpinning = false;
-    el.spinBtn.disabled = state.money < CONFIG.gamble.spinCost;
+    renderGambleBet(); // 화살표 잠금 해제 + 새 잔액 기준으로 스핀 버튼 상태 갱신
   }, 4300);
 }
 
@@ -1564,8 +1946,10 @@ function getUnlockedSpeeds() {
   return CONFIG.speeds.filter((s) => s.checkUnlocked(state)).map((s) => s.value);
 }
 
-function renderSpeedOptions() {
-  if (!el.speedOptions) return;
+// 화면 우측 최상단 배속 버튼 표시 갱신. 버튼 자체는 항상 지금 배속(×1/×2/×3)만 보여주고,
+// 해금 상태/조건 설명은 눌렀을 때만(안 열렸을 경우) #speed-lock-modal로 보여준다.
+function renderSpeedToggle() {
+  if (!el.speedToggleBtn) return;
   const unlocked = getUnlockedSpeeds();
 
   // 지금 선택된 배속이 더 이상 해금 조건을 만족 못 하면(이론상 발생 안 하지만 방어적으로) ×1로 되돌림
@@ -1573,28 +1957,31 @@ function renderSpeedOptions() {
     state.speedLevel = 1;
   }
 
-  el.speedOptions.querySelectorAll(".speed-btn").forEach((btn) => {
-    const value = Number(btn.dataset.speed);
-    const isUnlocked = unlocked.includes(value);
-    btn.classList.toggle("active", value === state.speedLevel);
-    btn.classList.toggle("locked", !isUnlocked);
-    btn.disabled = !isUnlocked;
-  });
+  el.speedToggleBtn.textContent = `×${state.speedLevel}`;
+}
 
-  if (el.speedHint) {
-    if (unlocked.length < CONFIG.speeds.length) {
-      el.speedHint.textContent = "×2는 모든 직원 고용, ×3은 모든 직원 Lv.15 달성 시 열려요.";
-    } else {
-      el.speedHint.textContent = "모든 배속이 열렸어요!";
-    }
+// 버튼을 누를 때마다 배속이 ×1→×2→×3→×1 순으로 한 칸씩 순환한다. 다음 배속이 아직 잠겨
+// 있으면 배속은 그대로 두고, 그 배속의 해금 조건을 안내 팝업으로 띄운다.
+function handleSpeedToggle() {
+  const values = CONFIG.speeds.map((s) => s.value); // [1, 2, 3]
+  const currentIndex = values.indexOf(state.speedLevel);
+  const nextConfig = CONFIG.speeds[(currentIndex + 1) % values.length];
+
+  if (nextConfig.checkUnlocked(state)) {
+    state.speedLevel = nextConfig.value;
+    renderSpeedToggle();
+  } else {
+    openSpeedLockModal(nextConfig);
   }
 }
 
-function handleSpeedSelect(value) {
-  const unlocked = getUnlockedSpeeds();
-  if (!unlocked.includes(value)) return;
-  state.speedLevel = value;
-  renderSpeedOptions();
+function openSpeedLockModal(speedConfig) {
+  if (el.speedLockTitle) el.speedLockTitle.textContent = `${speedConfig.label} 배속이 아직 잠겨있어요`;
+  if (el.speedLockDesc) el.speedLockDesc.textContent = speedConfig.lockHint || "";
+  if (el.speedLockModal) el.speedLockModal.hidden = false;
+}
+function closeSpeedLockModal() {
+  if (el.speedLockModal) el.speedLockModal.hidden = true;
 }
 
 /* ---------------------------------------------------------
@@ -1638,6 +2025,61 @@ function handleThemeColorSelect(themeId) {
 }
 
 /* ---------------------------------------------------------
+   10-2. 피버타임 출연 직원 설정 (설정 > 🔥 피버 직원 카드 → "직원 선택하기" 팝업)
+   15명 전원을 대상으로 "피버타임에 나올지" 여부를 미리 켜둘 수 있다(고용 여부와 무관하게
+   미리 선택해둘 수 있고, 실제로 나오려면 그 시점에 고용까지 돼 있어야 한다 — pickFeverHelpers 참고).
+   4명 넘게 켜두면 피버타임이 시작될 때마다 그중 무작위 4명만 나오고, 하나도 안 켜두면 고용된
+   직원 전체 중 무작위로 나온다. 선택 개수에는 상한이 없다.
+   --------------------------------------------------------- */
+function renderFeverHelperOptions() {
+  if (!el.feverHelperOptions) return;
+
+  const selected = state.feverSelectedHelpers;
+  el.feverHelperOptions.innerHTML = CONFIG.villagers
+    .map((v) => {
+      const isHired = !!state.villagers[v.id]?.hired;
+      const isSelected = selected.includes(v.id);
+      return `
+        <button class="fever-helper-option${isSelected ? " active" : ""}${isHired ? "" : " not-hired"}" data-villager="${v.id}">
+          <span class="fever-helper-option-emoji">${getDisplayEmoji(v)}</span>
+          <span class="fever-helper-option-name">${getDisplayName(v)}</span>
+          ${isHired ? "" : '<span class="fever-helper-option-tag">미고용</span>'}
+        </button>
+      `;
+    })
+    .join("");
+
+  el.feverHelperOptions.querySelectorAll("[data-villager]").forEach((btn) => {
+    btn.addEventListener("click", () => toggleFeverHelperSelection(btn.dataset.villager));
+  });
+
+  if (el.feverHelperHint) {
+    el.feverHelperHint.textContent =
+      `${selected.length}명 선택됨 · 선택한 직원이 고용 중일 때만 나와요. 4명보다 많이 선택하면 그때마다 무작위 4명만, ` +
+      `하나도 선택하지 않으면 고용된 직원 중 무작위로 나와요.`;
+  }
+}
+
+function toggleFeverHelperSelection(villagerId) {
+  const selected = state.feverSelectedHelpers;
+  const idx = selected.indexOf(villagerId);
+  if (idx >= 0) {
+    selected.splice(idx, 1);
+  } else {
+    selected.push(villagerId); // 선택 개수 상한 없음 — 4명 초과분은 발동 시점에 무작위로 추려진다
+  }
+  renderFeverHelperOptions();
+}
+
+function openFeverHelperModal() {
+  renderFeverHelperOptions();
+  if (el.feverHelperModal) el.feverHelperModal.hidden = false;
+}
+function closeFeverHelperModal() {
+  if (el.feverHelperModal) el.feverHelperModal.hidden = true;
+}
+
+/* ---------------------------------------------------------
    11. 저장 (슬롯 3개, localStorage)
    --------------------------------------------------------- */
 const SAVE_KEY_PREFIX = "village-clicker-save-";
@@ -1656,9 +2098,13 @@ function serializeState() {
     gambleSpinCount: state.gambleSpinCount,
     bestGambleMultiplier: state.bestGambleMultiplier,
     debtorEncountered: state.debtorEncountered,
+    gambleBetIndex: state.gambleBetIndex,
 
     goalMoney: state.goalMoney,
     fightChallengeFailCount: state.fightChallengeFailCount,
+
+    feverLevel: state.feverLevel,
+    feverSelectedHelpers: state.feverSelectedHelpers,
 
     savedAt: Date.now(),
   };
@@ -1677,10 +2123,23 @@ function applySavedState(saved) {
   state.gambleSpinCount = saved.gambleSpinCount ?? 0;
   state.bestGambleMultiplier = saved.bestGambleMultiplier ?? 0;
   state.debtorEncountered = !!saved.debtorEncountered;
+  // 베팅 단계 개수가 나중에 바뀌었을 수도 있으니 항상 유효 범위로 클램프한다.
+  state.gambleBetIndex = Math.min(
+    Math.max(saved.gambleBetIndex ?? CONFIG.gamble.defaultBetIndex, 0),
+    CONFIG.gamble.betOptions.length - 1
+  );
 
   // goalMoney가 저장 안 된 옛날 세이브 파일이면 기본 목표금액으로 되돌린다.
   state.goalMoney = saved.goalMoney ?? CONFIG.goalMoney;
   state.fightChallengeFailCount = saved.fightChallengeFailCount ?? 0;
+
+  // 피버타임 레벨도 클릭 레벨과 같은 이유로 항상 현재 만렙 기준으로 클램프한다.
+  // (저장 안 된 옛날 세이브는 0 = 아직 해금 전으로 취급)
+  state.feverLevel = Math.min(saved.feverLevel ?? 0, CONFIG.fever.maxLevel);
+  state.feverSelectedHelpers = Array.isArray(saved.feverSelectedHelpers)
+    ? saved.feverSelectedHelpers.slice(0, CONFIG.fever.helperCount)
+    : [];
+  resetFeverRuntimeState(); // 진행 중이던 피버타임 발동/카운트는 항상 0부터 다시 시작(villagerIncomeTimers와 동일한 이유)
 
   // 저장 시점 이후 CONFIG에 직원이 추가됐을 수 있으니, 저장된 값이 있는 직원만 덮어쓰고 나머지는 기본값 유지
   CONFIG.villagers.forEach((v) => {
@@ -1790,9 +2249,14 @@ function resetGame() {
   state.gambleSpinCount = 0;
   state.bestGambleMultiplier = 0;
   state.debtorEncountered = false;
+  state.gambleBetIndex = CONFIG.gamble.defaultBetIndex;
 
   state.goalMoney = CONFIG.goalMoney;
   state.fightChallengeFailCount = 0;
+
+  state.feverLevel = 0;
+  state.feverSelectedHelpers = [];
+  resetFeverRuntimeState();
 
   currentHireTheme = "forest"; // 고용 탭도 첫 테마로 되돌림
   CONFIG.villagers.forEach((v) => {
@@ -1812,11 +2276,11 @@ function closeResetModal() {
 }
 
 /* ---------------------------------------------------------
-   12-1. 목표 금액 달성(빚 다 갚음) 축하 모달
+   12-1. 목표 금액 달성 축하 모달
    --------------------------------------------------------- */
 function openVictoryModal() {
   if (el.victoryDesc) {
-    // 맞다이 신청 실패로 목표 금액(state.goalMoney)이 커진 상태로 달성했을 수도 있으니,
+    // 인생한방 도전 실패로 목표 금액(state.goalMoney)이 커진 상태로 달성했을 수도 있으니,
     // 항상 그 순간의 실제 목표 금액을 반영해서 보여준다(고정 텍스트로 두면 실제 달성 금액과 어긋난다).
     el.victoryDesc.textContent = `${formatMoneyCompact(state.goalMoney)}을 전부 모았어요. 정말 대단해요!`;
   }
@@ -1925,6 +2389,14 @@ function openFightChallengeModal() {
   const debtorName = getCustomEntry("main").debtorName || "캐릭터2";
   if (el.fightChallengeTitle) el.fightChallengeTitle.textContent = "인생한방에 도전할까요?";
   el.fightChallengeCost.textContent = formatMoneyCompact(cost);
+  // 확률/배수는 CONFIG.fightChallenge 값 그대로 보여준다 — 밸런스를 바꿔도 이 문구가 따로 안 맞을 일이 없게.
+  if (el.fightChallengeOdds) {
+    const successPct = Math.round(CONFIG.fightChallenge.successChance * 100);
+    const failPct = 100 - successPct;
+    el.fightChallengeOdds.textContent =
+      `성공(${successPct}%)하면 가진 돈이 ${CONFIG.fightChallenge.successMoneyMultiplier}배가 되고, ` +
+      `실패(${failPct}%)하면 목표 금액이 ${CONFIG.fightChallenge.failGoalMultiplier}배가 돼요.`;
+  }
   el.fightChallengeModal.hidden = false;
 }
 function closeFightChallengeModal() {
@@ -1945,13 +2417,13 @@ function handleFightChallengeConfirm() {
 
   const success = Math.random() < CONFIG.fightChallenge.successChance;
   if (success) {
-    // 성공: 빚을 전부 청산 (목표 금액만큼 즉시 채운다 — 이미 모아둔 돈은 그대로 유지)
-    state.money = Math.max(state.money, state.goalMoney);
+    // 성공: 지금 가진 돈이 그대로 배수만큼 불어난다 (목표 금액은 그대로 — 더 이상 한 번에 청산하는 방식이 아니다)
+    state.money *= CONFIG.fightChallenge.successMoneyMultiplier;
     state.fightChallengeFailCount = 0; // 성공했으니 다음에 다시 하려면 원래 비용부터 시작
   } else {
-    // 실패: 빚(목표 금액)이 2배로 불어나고, 다음 참가비도 2배로 뛴다.
-    // 레벨 상한도 늘어난 빚에 맞춰 함께 늘어난다(getVillagerMaxLevel이 state.goalMoney를 참조).
-    state.goalMoney *= 2;
+    // 실패: 목표 금액이 배수만큼 불어나고, 다음 참가비도 2배로 뛴다.
+    // 레벨 상한도 늘어난 목표 금액에 맞춰 함께 늘어난다(getVillagerMaxLevel이 state.goalMoney를 참조).
+    state.goalMoney *= CONFIG.fightChallenge.failGoalMultiplier;
     state.fightChallengeFailCount += 1;
   }
 
@@ -1965,11 +2437,11 @@ function showFightResultModal(success) {
   if (success) {
     el.fightResultEmoji.textContent = "🎉";
     el.fightResultTitle.textContent = "성공했어요!";
-    el.fightResultDesc.textContent = "인생한방으로 목표 금액을 모두 채웠어요!";
+    el.fightResultDesc.textContent = `인생한방으로 가진 돈이 ${CONFIG.fightChallenge.successMoneyMultiplier}배가 됐어요! 지금 ${formatMoneyCompact(state.money)}`;
   } else {
     el.fightResultEmoji.textContent = "💥";
     el.fightResultTitle.textContent = "실패했어요...";
-    el.fightResultDesc.textContent = `목표 금액이 2배로 늘어났어요. 남은 금액: ${formatMoneyCompact(Math.max(0, state.goalMoney - state.money))}`;
+    el.fightResultDesc.textContent = `목표 금액이 ${CONFIG.fightChallenge.failGoalMultiplier}배로 늘어났어요. 남은 금액: ${formatMoneyCompact(Math.max(0, state.goalMoney - state.money))}`;
   }
   el.fightResultModal.hidden = false;
 }
@@ -2307,10 +2779,11 @@ function setupOverlayClickToClose(overlayEl, closeFn) {
    13. 초기화
    --------------------------------------------------------- */
 function init() {
-  el.spinCost.textContent = formatMoneyCompact(CONFIG.gamble.spinCost);
+  renderGambleBet();
 
   el.mainCharacter.addEventListener("click", handleClick);
   el.upgradeBtn.addEventListener("click", handleUpgrade);
+  if (el.feverUpgradeBtn) el.feverUpgradeBtn.addEventListener("click", handleFeverUpgrade);
   el.spinBtn.addEventListener("click", handleSpin);
 
   el.tabButtons.forEach((btn) => {
@@ -2321,12 +2794,9 @@ function init() {
     btn.addEventListener("click", () => switchTheme(btn.dataset.theme));
   });
 
-  // 배속 버튼
-  if (el.speedOptions) {
-    el.speedOptions.querySelectorAll(".speed-btn").forEach((btn) => {
-      btn.addEventListener("click", () => handleSpeedSelect(Number(btn.dataset.speed)));
-    });
-  }
+  // 배속 버튼 (화면 우측 최상단 고정) + 해금 안내 팝업
+  if (el.speedToggleBtn) el.speedToggleBtn.addEventListener("click", handleSpeedToggle);
+  if (el.speedLockCloseBtn) el.speedLockCloseBtn.addEventListener("click", closeSpeedLockModal);
 
   // 테마 색상 스와치
   if (el.themeColorOptions) {
@@ -2357,11 +2827,26 @@ function init() {
     });
   }
 
+  // 베팅 금액: 화살표 클릭 + 휠 스크롤 + 좌우 드래그(모바일 스와이프 포함, setupGambleBetDrag)로 조절
+  if (el.gambleBetPrevBtn) el.gambleBetPrevBtn.addEventListener("click", () => handleGambleBetStep(-1));
+  if (el.gambleBetNextBtn) el.gambleBetNextBtn.addEventListener("click", () => handleGambleBetStep(1));
+  if (el.gambleBetStepper) {
+    el.gambleBetStepper.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault(); // 스크롤이 뒤의 콘텐츠 영역까지 흘러가지 않게 막는다
+        handleGambleBetStep(e.deltaY > 0 ? 1 : -1);
+      },
+      { passive: false }
+    );
+  }
+  setupGambleBetDrag();
+
   // 룰렛 확률표 모달
   if (el.payoutTableBtn) el.payoutTableBtn.addEventListener("click", openPayoutModal);
   if (el.payoutCloseBtn) el.payoutCloseBtn.addEventListener("click", closePayoutModal);
 
-  // 목표 달성(빚 다 갚음) 축하 모달: 계속하기는 그냥 닫고, 초기화하기는 기존 초기화 확인 모달로 넘긴다
+  // 목표 달성 축하 모달: 계속하기는 그냥 닫고, 초기화하기는 기존 초기화 확인 모달로 넘긴다
   if (el.victoryContinueBtn) el.victoryContinueBtn.addEventListener("click", closeVictoryModal);
   if (el.victoryResetBtn) {
     el.victoryResetBtn.addEventListener("click", () => {
@@ -2374,7 +2859,11 @@ function init() {
   if (el.achievementBtn) el.achievementBtn.addEventListener("click", openAchievementModal);
   if (el.achievementCloseBtn) el.achievementCloseBtn.addEventListener("click", closeAchievementModal);
 
-  // "맞다이 신청" 버튼/모달
+  // 피버타임 도우미 선택 모달 (설정 > 🔥 피버 직원)
+  if (el.feverHelperOpenBtn) el.feverHelperOpenBtn.addEventListener("click", openFeverHelperModal);
+  if (el.feverHelperCloseBtn) el.feverHelperCloseBtn.addEventListener("click", closeFeverHelperModal);
+
+  // "인생한방" 버튼/모달
   if (el.fightChallengeBtn) el.fightChallengeBtn.addEventListener("click", openFightChallengeModal);
   if (el.fightChallengeCancelBtn) el.fightChallengeCancelBtn.addEventListener("click", closeFightChallengeModal);
   if (el.fightChallengeConfirmBtn) el.fightChallengeConfirmBtn.addEventListener("click", handleFightChallengeConfirm);
@@ -2428,6 +2917,8 @@ function init() {
   setupOverlayClickToClose(el.payoutModal, closePayoutModal);
   setupOverlayClickToClose(el.victoryModal, closeVictoryModal);
   setupOverlayClickToClose(el.achievementModal, closeAchievementModal);
+  setupOverlayClickToClose(el.speedLockModal, closeSpeedLockModal);
+  setupOverlayClickToClose(el.feverHelperModal, closeFeverHelperModal);
   setupOverlayClickToClose(el.customGalleryModal, closeCustomGalleryModal);
   setupOverlayClickToClose(el.customEditModal, closeCustomEditModal);
   setupOverlayClickToClose(el.fightChallengeModal, closeFightChallengeModal);
@@ -2438,7 +2929,7 @@ function init() {
   buildWheelBackground();
   renderHireThemeTabs(); // "직원 고용" 화면 초기 테마탭 렌더
   renderThemeButtons(); // "직원 확인" 화면 테마 서브탭 아이콘 커스텀 반영
-  renderCustomTargetList(); // "설정 > 캐릭터 커스텀" 목록 초기 렌더
+  renderCustomTargetList(); // "설정 > 🎨 커스텀 이미지" 팝업 목록 초기 렌더
   renderAll();
   renderHireThemeContent(); // 고용 화면 카드는 renderEconomy의 가벼운 갱신 대상이 아니므로 최초 1회 명시적으로 그림
   startPassiveIncomeLoop();

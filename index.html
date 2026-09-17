@@ -16,13 +16,26 @@
          숨어서 #main-stage 자체의 그라디언트 배경(.stage-bg.stage-N)이 그대로 보인다. -->
     <img id="main-stage-bg-img" class="stage-bg-img" alt=""
          onerror="this.hidden=true;" hidden />
-    <!-- ② 목표(빚) 진행바: 라벨은 바 바깥 위쪽에 두어 게이지를 가리지 않게 하고,
-         바 안에는 "남은 빚" 금액을 텍스트로 보여준다 -->
+    <!-- ② 목표 금액 진행바: 라벨 줄에 배속 버튼을 나란히 두고(같은 높이로 맞춰 한 선상에 보이게),
+         진행바 자체는 예전처럼 가로 폭 전체를 그대로 채운다. -->
     <div id="goal-panel">
-      <span class="goal-panel-label" id="goal-label">목표 금액</span>
+      <div class="goal-panel-top-row">
+        <span class="goal-panel-label" id="goal-label">목표 금액</span>
+        <!-- 배속 버튼: 누를 때마다 배속이 ×1→×2→×3→×1 순으로 바뀌고, 다음 배속이 아직 잠겨
+             있으면 배속은 그대로 두고 해금 조건 안내 팝업(#speed-lock-modal)을 띄운다
+             (handleSpeedToggle 참고). -->
+        <button id="speed-toggle-btn" class="speed-toggle-btn" aria-label="게임 속도 변경">×1</button>
+      </div>
       <div class="goal-progress-track">
         <div class="goal-progress-fill" id="progress-fill"></div>
         <span class="goal-progress-text" id="goal-remaining-text">1,000억원 남음</span>
+      </div>
+      <!-- 피버타임 게이지: 평소엔 클릭이 쌓이는 만큼 차오르고, 피버타임 중엔 반대로 남은 시간만큼
+           줄어든다(renderFeverMeter 참고). 피버타임을 해금(Lv.1 이상 강화)하기 전에는 숨겨진다. -->
+      <div id="fever-meter-panel" class="fever-meter-panel" hidden>
+        <div class="fever-meter-track">
+          <div class="fever-meter-fill" id="fever-meter-fill"></div>
+        </div>
       </div>
     </div>
 
@@ -41,9 +54,21 @@
     <!-- "인생한방" 버튼: 트로피와 같은 가로 선상 왼쪽 끝. 캐릭터2 모드 + Stage 5일 때만 나타난다 -->
     <button id="fight-challenge-btn" class="fight-challenge-btn" hidden>🎰 인생한방</button>
 
+    <!-- 피버타임 배너: 발동 중에만 보이고, 배수/남은 시간을 매초 갱신한다(renderFeverBanner 참고) -->
+    <div id="fever-banner" class="fever-banner" hidden>
+      <span class="fever-banner-icon">🔥</span>
+      <span class="fever-banner-text">피버타임!</span>
+      <span class="fever-banner-multiplier" id="fever-banner-multiplier">×1.5</span>
+      <span class="fever-banner-timer" id="fever-banner-timer">0:08</span>
+    </div>
+
     <div id="popup-layer"></div>
 
     <div id="village-deco" aria-hidden="true"></div>
+
+    <!-- 피버타임 도우미: 메인 캐릭터 좌우에 최대 2명씩(총 4명) 폴짝거리며 나타난다(renderFeverHelpers 참고) -->
+    <div id="fever-helpers-left" class="fever-helpers fever-helpers-left" aria-hidden="true" hidden></div>
+    <div id="fever-helpers-right" class="fever-helpers fever-helpers-right" aria-hidden="true" hidden></div>
 
     <button id="main-character" aria-label="캐릭터1을 클릭해서 돈 벌기">
       <!-- 평소 캐릭터 그룹: 기본 이미지 자산은 없고, 설정 > 이미지 커스텀에서 업로드한 이미지가
@@ -118,6 +143,37 @@
         </button>
       </div>
 
+      <!-- 피버타임 강화 카드: 클릭을 모으면 터지는 피버타임의 배수·지속시간을 늘린다 -->
+      <div class="upgrade-card fever-upgrade-card">
+        <div class="upgrade-header">
+          <span class="upgrade-icon">🔥</span>
+          <div class="upgrade-title">
+            <h2>피버타임 강화</h2>
+            <p class="upgrade-sub">클릭을 모으면 터지는 피버타임의 배수와 지속시간을 늘려요</p>
+          </div>
+        </div>
+
+        <div class="upgrade-stats">
+          <div class="stat-box">
+            <span class="stat-label">피버 레벨</span>
+            <span class="stat-value" id="fever-level">미해금</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">배수 · 지속시간</span>
+            <span class="stat-value" id="fever-current-stat">-</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">다음 레벨</span>
+            <span class="stat-value" id="fever-next-stat">×1.5 · 8초</span>
+          </div>
+        </div>
+
+        <button id="fever-upgrade-btn" class="upgrade-btn">
+          <span class="upgrade-btn-label">강화하기</span>
+          <span class="upgrade-btn-cost" id="fever-upgrade-cost">50만원</span>
+        </button>
+      </div>
+
       <p class="coming-soon">🏘️ 직원 고용에서 새 직원을 만나보세요</p>
     </section>
 
@@ -152,7 +208,7 @@
           <span class="upgrade-icon">🎰</span>
           <div class="upgrade-title">
             <h2>돌림판 도박</h2>
-            <p class="upgrade-sub">한 번 돌릴 때마다 10,000원이 들어요</p>
+            <p class="upgrade-sub">베팅 금액을 고르고 돌림판을 돌려보세요</p>
           </div>
         </div>
 
@@ -167,25 +223,32 @@
           </button>
         </div>
 
-        <button id="spin-btn" class="upgrade-btn">
-          <span class="upgrade-btn-label">돌리기</span>
-          <span class="upgrade-btn-cost" id="spin-cost">10,000원</span>
-        </button>
+        <!-- 베팅 금액 + 돌리기 버튼: 룰렛 바로 아래, 서로 가깝게 가운데로 모아서 한 덩어리처럼
+             보이게 한다. 금액은 화살표를 누르거나, 좌우로 드래그하거나(모바일 스와이프 포함),
+             이 위에서 마우스 휠을 굴려도 한 단계씩 바뀐다(handleGambleBetStep/setupGambleBetDrag
+             참고). 배수 확률은 베팅 금액과 무관하게 항상 같은 비율이라 - 베팅을 올려도
+             확률/기대수익률은 그대로, 액수만 커진다. -->
+        <div class="gamble-bet-row">
+          <div class="gamble-bet-stepper" id="gamble-bet-stepper">
+            <button id="gamble-bet-prev" class="gamble-bet-arrow" aria-label="베팅 금액 낮추기">
+              <span class="gamble-bet-chevron gamble-bet-chevron-left"></span>
+            </button>
+            <span id="gamble-bet-amount" class="gamble-bet-amount">1만원</span>
+            <button id="gamble-bet-next" class="gamble-bet-arrow" aria-label="베팅 금액 높이기">
+              <span class="gamble-bet-chevron gamble-bet-chevron-right"></span>
+            </button>
+          </div>
+          <button id="spin-btn" class="spin-btn">돌리기</button>
+        </div>
       </div>
     </section>
 
-    <!-- 설정 화면: 배속 선택 + 저장 슬롯 3개 + 게임 초기화 -->
+    <!-- 설정 화면: 맨 위 테마 색상 → 피버 직원/커스텀 이미지(간단 소개 + 버튼, 자세한 내용은
+         팝업) → 저장 슬롯 3개 → 게임 초기화 순. 배속은 화면 우측 최상단 고정 버튼으로 분리됐고,
+         이 순서/구성은 "저장 버튼까지 스크롤이 너무 길다"는 접근성 문제 때문에 다시 짠 것이다 —
+         자주 쓰지 않는 상세 설정(직원 선택 목록, 이미지 편집/내보내기/가져오기)을 팝업 뒤로
+         숨겨서 탭 안에서는 카드 6장이 아니라 4장 분량만 차지하게 줄였다. -->
     <section id="tab-settings" class="tab-panel">
-
-      <div class="settings-card">
-        <h2 class="settings-title">⚡ 게임 속도</h2>
-        <div id="speed-options" class="speed-options">
-          <button class="speed-btn" data-speed="1">×1</button>
-          <button class="speed-btn" data-speed="2">×2</button>
-          <button class="speed-btn" data-speed="3">×3</button>
-        </div>
-        <p class="settings-hint" id="speed-hint"></p>
-      </div>
 
       <div class="settings-card">
         <h2 class="settings-title">🌈 테마 색상</h2>
@@ -202,16 +265,18 @@
         </div>
       </div>
 
-      <div class="settings-card">
-        <h2 class="settings-title">🎨 캐릭터 커스텀</h2>
-        <p class="settings-hint">이름, 이모지, 이미지, 움직임을 원하는 대로 바꿔보세요.</p>
-        <button id="custom-gallery-btn" class="settings-btn">🖼️ 이미지 커스텀</button>
-        <div class="custom-io-row">
-          <button id="custom-export-btn" class="settings-btn">📤 내보내기</button>
-          <button id="custom-import-btn" class="settings-btn">📥 가져오기</button>
-          <input type="file" id="custom-import-file" accept="application/json" hidden />
+      <div class="settings-row">
+        <div class="settings-card settings-card-half">
+          <h2 class="settings-title">🔥 피버 직원</h2>
+          <p class="settings-hint">피버타임에 나올 직원을 미리 골라두세요.</p>
+          <button id="fever-helper-open-btn" class="settings-btn settings-btn-block">직원 선택하기</button>
         </div>
-        <p class="settings-hint">내보낸 파일을 다른 기기/브라우저에서 가져오면 커스텀 설정이 그대로 옮겨져요.</p>
+
+        <div class="settings-card settings-card-half">
+          <h2 class="settings-title">🎨 커스텀 이미지</h2>
+          <p class="settings-hint">이름·이모지·이미지를 바꾸거나 내보내기/가져오기를 할 수 있어요.</p>
+          <button id="custom-gallery-btn" class="settings-btn settings-btn-block">이미지 커스텀</button>
+        </div>
       </div>
 
       <div class="settings-card">
@@ -229,6 +294,17 @@
 
   </main>
 
+</div>
+
+<!-- 배속 해금 조건 안내 모달: 아직 잠긴 배속을 누르면 배속은 그대로 두고 이 팝업이 뜬다 -->
+<div id="speed-lock-modal" class="modal-overlay" hidden>
+  <div class="modal-box">
+    <p class="modal-title" id="speed-lock-title">배속이 아직 잠겨있어요</p>
+    <p class="modal-desc" id="speed-lock-desc"></p>
+    <div class="modal-actions">
+      <button id="speed-lock-close-btn" class="modal-btn modal-btn-primary">확인</button>
+    </div>
+  </div>
 </div>
 
 <!-- 게임 초기화 확인 모달 -->
@@ -254,11 +330,11 @@
   </div>
 </div>
 
-<!-- 목표 달성(빚 다 갚음) 축하 모달 -->
+<!-- 목표 달성 축하 모달 -->
 <div id="victory-modal" class="modal-overlay" hidden>
   <div class="modal-box victory-modal-box">
     <p class="victory-emoji">🎉</p>
-    <p class="modal-title">빚을 모두 갚았어요!</p>
+    <p class="modal-title">목표를 달성했어요!</p>
     <p class="modal-desc" id="victory-desc">1,000억원을 전부 모았어요. 정말 대단해요!</p>
     <div class="modal-actions">
       <button id="victory-reset-btn" class="modal-btn modal-btn-cancel">초기화하기</button>
@@ -286,11 +362,38 @@
   <div class="modal-box custom-gallery-modal-box">
     <div class="custom-gallery-scroll-body">
       <p class="modal-title">🖼️ 이미지 커스텀</p>
-      <p class="modal-desc">바꾸고 싶은 대상을 골라주세요.</p>
+      <p class="modal-desc">바꾸고 싶은 대상을 골라 이름·이모지·이미지·움직임을 등록하세요.</p>
       <div id="custom-target-list" class="custom-target-list"></div>
     </div>
+    <!-- 내보내기/가져오기: 스크롤 영역 밖(항상 보이는 자리)에 둬서 목록을 한참 내리지 않아도 바로 쓸 수 있다 -->
+    <div class="custom-io-row">
+      <button id="custom-export-btn" class="settings-btn">📤 내보내기</button>
+      <button id="custom-import-btn" class="settings-btn">📥 가져오기</button>
+      <input type="file" id="custom-import-file" accept="application/json" hidden />
+    </div>
+    <p class="settings-hint custom-io-hint">내보낸 파일을 다른 기기/브라우저에서 가져오면 커스텀 설정이 그대로 옮겨져요.</p>
     <div class="modal-actions">
       <button id="custom-gallery-close-btn" class="modal-btn modal-btn-cancel">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 피버타임 도우미 선택 모달: 설정 > 🔥 피버 직원 카드에서 열린다. 15명 전체를 대상으로
+     "피버타임 출연" 여부를 미리 켜둘 수 있다(toggleFeverHelperSelection 참고). -->
+<div id="fever-helper-modal" class="modal-overlay" hidden>
+  <div class="modal-box fever-helper-modal-box">
+    <div class="fever-helper-scroll-body">
+      <p class="modal-title">🔥 피버타임 도우미</p>
+      <p class="modal-desc">
+        피버타임 때 메인 캐릭터 옆에 나올 직원을 미리 골라두세요. 선택한 직원이 고용 중일 때만
+        나오고, 4명보다 많이 고르면 그때마다 무작위 4명만, 하나도 고르지 않으면 고용된 직원 중
+        무작위로 나와요.
+      </p>
+      <div id="fever-helper-options" class="fever-helper-options"></div>
+      <p class="settings-hint" id="fever-helper-hint"></p>
+    </div>
+    <div class="modal-actions">
+      <button id="fever-helper-close-btn" class="modal-btn modal-btn-primary">완료</button>
     </div>
   </div>
 </div>
@@ -367,7 +470,7 @@
     <p class="modal-title" id="fight-challenge-title">인생한방에 도전할까요?</p>
     <p class="modal-desc" id="fight-challenge-desc">
       참가비 <strong id="fight-challenge-cost">10억원</strong>을 내고 도전합니다.<br>
-      성공(50%)하면 빚을 모두 갚고, 실패(50%)하면 빚이 2배가 돼요.
+      <span id="fight-challenge-odds">성공(70%)하면 가진 돈이 3배가 되고, 실패(30%)하면 목표 금액이 2배가 돼요.</span>
     </p>
     <div class="modal-actions">
       <button id="fight-challenge-cancel-btn" class="modal-btn modal-btn-cancel">그만두기</button>
