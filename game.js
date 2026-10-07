@@ -429,12 +429,51 @@ const CUSTOM_MOTIONS = [
   { id: "motion-wiggle", label: "꿈틀거리기" },
 ];
 
+// ---- 보안: HTML 이스케이프 · 커스텀 데이터 정리 ----
+// 이름·이모지·이미지 주소처럼 사용자가 정하거나 파일로 가져온 값은 HTML 문자열에 넣기 전에 escapeHtml()을 거친다.
+// (남이 만든 커스텀 파일을 가져오면 이름 안에 숨긴 스크립트가 실행될 수 있기 때문)
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function escapeHtml(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+}
+
+// 커스텀 이미지는 이 게임이 만드는 data:image base64 주소만 받는다 (다른 사이트 주소·javascript: 주소 차단)
+function isSafeImageDataUrl(v) {
+  return typeof v === "string" && /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/.test(v);
+}
+
+// 글자 필드별 최대 길이 (입력란 제한보다 넉넉하게 — 기존 데이터를 자르지 않도록)
+const CUSTOM_TEXT_LIMITS = { name: 30, debtorName: 30, emoji: 16, debtorEmoji: 16, bubbleText: 500 };
+
+// 저장소에서 읽거나 파일에서 가져온 커스텀 데이터를 알려진 모양으로만 남긴다
+function sanitizeCustomData(rawData) {
+  const out = {};
+  if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) return out;
+  for (const [id, entry] of Object.entries(rawData)) {
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(id) || !entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const clean = {};
+    for (const [key, value] of Object.entries(entry)) {
+      if (key.endsWith("Staged")) {
+        if (typeof value === "boolean") clean[key] = value;
+      } else if (key.includes("Image")) {
+        if (isSafeImageDataUrl(value)) clean[key] = value;
+      } else if (key === "motion") {
+        if (CUSTOM_MOTIONS.some((m) => m.id === value)) clean[key] = value;
+      } else if (key in CUSTOM_TEXT_LIMITS) {
+        if (typeof value === "string") clean[key] = value.slice(0, CUSTOM_TEXT_LIMITS[key]);
+      }
+    }
+    if (Object.keys(clean).length > 0) out[id] = clean;
+  }
+  return out;
+}
+
 let customData = loadCustomData();
 
 function loadCustomData() {
   try {
     const raw = window.localStorage.getItem(CUSTOM_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return raw ? sanitizeCustomData(JSON.parse(raw)) : {};
   } catch (e) {
     return {};
   }
@@ -943,12 +982,12 @@ function feverHelperVisualHtml(villagerId, delayIndex) {
   const charImage = getDisplayCharacterImage(v);
   const delay = (delayIndex * 0.15).toFixed(2);
   const imgTag = charImage
-    ? `<img class="fever-helper-img" style="animation-delay:${delay}s" src="${charImage}" alt="${displayName}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
+    ? `<img class="fever-helper-img" style="animation-delay:${delay}s" src="${escapeHtml(charImage)}" alt="${escapeHtml(displayName)}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
     : "";
   return `
     <div class="fever-helper">
       ${imgTag}
-      <span class="fever-helper-emoji" style="animation-delay:${delay}s" ${imgTag ? "hidden" : ""}>${displayEmoji}</span>
+      <span class="fever-helper-emoji" style="animation-delay:${delay}s" ${imgTag ? "hidden" : ""}>${escapeHtml(displayEmoji)}</span>
     </div>
   `;
 }
@@ -1330,7 +1369,7 @@ function renderHireThemeTabs() {
       const unlocked = isThemeUnlocked(t.id);
       const active = t.id === currentHireTheme;
       return `<button class="theme-btn${active ? " active" : ""}${unlocked ? "" : " locked"}"
-        data-hire-theme="${t.id}" ${unlocked ? "" : "disabled"}>${getDisplayThemeIcon(t)}${unlocked ? "" : '<span class="theme-lock-badge">🔒</span>'}</button>`;
+        data-hire-theme="${t.id}" ${unlocked ? "" : "disabled"}>${escapeHtml(getDisplayThemeIcon(t))}${unlocked ? "" : '<span class="theme-lock-badge">🔒</span>'}</button>`;
     })
     .join("");
 
@@ -1369,19 +1408,19 @@ function buildVillagerVisualHtml(v) {
   // 배경/캐릭터 이미지는 있으면 <img>가 보이고, 없거나 로드 실패하면 onerror로 스스로 숨어서
   // 기존 단색 그라디언트 배경(.villager-visual)과 이모지(.villager-emoji)가 그대로 보인다.
   const bgImgTag = bgImage
-    ? `<img class="villager-bg-img" src="${bgImage}" alt="" onerror="this.hidden=true;" />`
+    ? `<img class="villager-bg-img" src="${escapeHtml(bgImage)}" alt="" onerror="this.hidden=true;" />`
     : "";
   const charImgTag = charImage
-    ? `<img class="villager-character-img ${motionClass}" src="${charImage}" alt="${displayName}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
+    ? `<img class="villager-character-img ${escapeHtml(motionClass)}" src="${escapeHtml(charImage)}" alt="${escapeHtml(displayName)}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />`
     : "";
   return `
       <div class="villager-visual">
         ${bgImgTag}
         <div class="bg-decor" id="bg-decor-${v.id}"></div>
         ${charImgTag}
-        <span class="villager-emoji ${motionClass}" ${charImgTag ? "hidden" : ""}>${displayEmoji}</span>
+        <span class="villager-emoji ${escapeHtml(motionClass)}" ${charImgTag ? "hidden" : ""}>${escapeHtml(displayEmoji)}</span>
         <div class="villager-speech-bubble" id="bubble-${v.id}" hidden></div>
-        <div class="villager-name-badge">${displayEmoji} ${displayName}</div>
+        <div class="villager-name-badge">${escapeHtml(displayEmoji)} ${escapeHtml(displayName)}</div>
         <div class="villager-lock-overlay" id="lock-${v.id}">
           <span class="lock-icon">🔒</span>
           <span class="lock-text">아직 고용되지 않음</span>
@@ -1444,11 +1483,11 @@ function hireVisualCharacterHtml(v) {
   const charImage = getDisplayCharacterImage(v);
   const displayName = getDisplayName(v);
   const displayEmoji = getDisplayEmoji(v);
-  if (!charImage) return `<span class="hire-emoji">${displayEmoji}</span>`;
+  if (!charImage) return `<span class="hire-emoji">${escapeHtml(displayEmoji)}</span>`;
   return `
-    <img class="hire-character-img" src="${charImage}" alt="${displayName}"
+    <img class="hire-character-img" src="${escapeHtml(charImage)}" alt="${escapeHtml(displayName)}"
          onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
-    <span class="hire-emoji" hidden>${displayEmoji}</span>
+    <span class="hire-emoji" hidden>${escapeHtml(displayEmoji)}</span>
   `;
 }
 
@@ -1463,7 +1502,7 @@ function renderHireThemeContent() {
       <div class="theme-locked-card">
         <span class="theme-locked-icon">🔒</span>
         <p class="theme-locked-title">아직 열리지 않은 지역이에요</p>
-        <p class="theme-locked-desc">${getDisplayThemeIcon(prevTheme)} ${prevTheme.name} 직원 3명을 모두 고용하면 열려요.</p>
+        <p class="theme-locked-desc">${escapeHtml(getDisplayThemeIcon(prevTheme))} ${escapeHtml(prevTheme.name)} 직원 3명을 모두 고용하면 열려요.</p>
       </div>
     `;
     return;
@@ -1482,7 +1521,7 @@ function renderHireThemeContent() {
           <div class="hire-card" id="hire-${v.id}">
             <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
             <div class="hire-info">
-              <h2 class="hire-name">${getDisplayName(v)}</h2>
+              <h2 class="hire-name">${escapeHtml(getDisplayName(v))}</h2>
               <div class="hire-stat-row"><span>고용 비용</span><strong>${formatMoneyCompact(v.hireCost)}</strong></div>
               <div class="hire-stat-row"><span>자동 수익</span><strong>${formatVillagerIncomeText(v, 1)}</strong></div>
             </div>
@@ -1501,7 +1540,7 @@ function renderHireThemeContent() {
         <div class="hire-card hire-card-hired" id="hire-${v.id}">
           <div class="hire-visual">${hireVisualCharacterHtml(v)}</div>
           <div class="hire-info">
-            <h2 class="hire-name">${getDisplayName(v)}</h2>
+            <h2 class="hire-name">${escapeHtml(getDisplayName(v))}</h2>
             <div class="upgrade-stats">
               <div class="stat-box">
                 <span class="stat-label">레벨</span>
@@ -2041,8 +2080,8 @@ function renderFeverHelperOptions() {
       const isSelected = selected.includes(v.id);
       return `
         <button class="fever-helper-option${isSelected ? " active" : ""}${isHired ? "" : " not-hired"}" data-villager="${v.id}">
-          <span class="fever-helper-option-emoji">${getDisplayEmoji(v)}</span>
-          <span class="fever-helper-option-name">${getDisplayName(v)}</span>
+          <span class="fever-helper-option-emoji">${escapeHtml(getDisplayEmoji(v))}</span>
+          <span class="fever-helper-option-name">${escapeHtml(getDisplayName(v))}</span>
           ${isHired ? "" : '<span class="fever-helper-option-tag">미고용</span>'}
         </button>
       `;
@@ -2199,7 +2238,7 @@ function renderSaveSlots() {
     row.innerHTML = `
       <div class="save-slot-info">
         <p class="save-slot-title">슬롯 ${i}</p>
-        <p class="save-slot-desc">${formatSlotDesc(saved)}</p>
+        <p class="save-slot-desc">${escapeHtml(formatSlotDesc(saved))}</p>
       </div>
       <div class="save-slot-actions">
         <button class="slot-btn slot-btn-save" data-action="save" data-slot="${i}">저장</button>
@@ -2526,12 +2565,12 @@ function renderCustomTargetList() {
           return `
             <button class="custom-target-btn ${hasCustom ? "has-custom" : ""}" data-custom-id="${t.id}">
               ${hasCustom ? '<span class="custom-target-check">✓</span>' : ""}
-              <span class="custom-target-icon">${t.icon}</span>
-              <span class="custom-target-name">${t.name}</span>
+              <span class="custom-target-icon">${escapeHtml(t.icon)}</span>
+              <span class="custom-target-name">${escapeHtml(t.name)}</span>
             </button>`;
         })
         .join("");
-      return `<div class="custom-target-group-label">${group.label}</div>${buttons}`;
+      return `<div class="custom-target-group-label">${escapeHtml(group.label)}</div>${buttons}`;
     })
     .join("");
   el.customTargetList.querySelectorAll("[data-custom-id]").forEach((btn) => {
@@ -2649,7 +2688,7 @@ function buildUploadSlotHtml(value, stage) {
       ${stage ? `<span class="custom-edit-stage-label">Stage ${stage}</span>` : ""}
       <label class="custom-upload-dropzone ${hasImage ? "has-image" : ""}" data-role="dropzone"${stageAttr}>
         ${hasImage
-          ? `<img class="custom-upload-preview" src="${value}" alt="" />`
+          ? `<img class="custom-upload-preview" src="${escapeHtml(value)}" alt="" />`
           : `<span class="custom-upload-icon">📷</span><span class="custom-upload-hint">클릭 또는 드래그</span>`}
         <input type="file" class="custom-upload-input" data-role="file" accept="image/*"${stageAttr} />
       </label>
@@ -2737,7 +2776,7 @@ function importCustomData(file) {
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         throw new Error("올바른 커스텀 설정 파일이 아니에요.");
       }
-      customData = parsed;
+      customData = sanitizeCustomData(parsed);
       const ok = saveCustomData();
       if (!ok) {
         window.alert("저장 공간이 부족해서 가져오기에 실패했어요.");
